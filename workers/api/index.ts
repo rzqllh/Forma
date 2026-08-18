@@ -11,6 +11,7 @@ import {
 
 export interface Env {
   DB: D1Database;
+  ASSETS?: Fetcher;
   APP_SHARED_SECRET?: string;
   CLOUDINARY_CLOUD_NAME?: string;
   CLOUDINARY_API_KEY?: string;
@@ -139,12 +140,29 @@ export default {
       });
     }
 
-    // Root & Health check endpoints
-    if (path === "/" || path === "/api/health") {
+    // Delegate non-API routes to Next.js static assets
+    if (!path.startsWith("/api/")) {
+      if (env.ASSETS) {
+        return env.ASSETS.fetch(request);
+      }
       return jsonResponse(
         {
           name: "FORMA Visual Finishing API",
-          status: "healthy",
+          status: "ok",
+          version: "1.0.0",
+          timestamp: new Date().toISOString(),
+        },
+        200,
+        request
+      );
+    }
+
+    // Health check endpoint
+    if (path === "/api/health") {
+      return jsonResponse(
+        {
+          name: "FORMA Visual Finishing API",
+          status: "ok",
           version: "1.0.0",
           timestamp: new Date().toISOString(),
         },
