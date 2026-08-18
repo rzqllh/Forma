@@ -86,26 +86,7 @@ function EditPageContent() {
   const [isCopied, setIsCopied] = useState(false);
   const [appliedToAllToast, setAppliedToAllToast] = useState(false);
 
-  // Drag & Pan state on Canvas
-  const [isDraggingCrop, setIsDraggingCrop] = useState(false);
-  const dragStartRef = useRef<{
-    pointerX: number;
-    pointerY: number;
-    initialOffsetX: number;
-    initialOffsetY: number;
-    containerWidth: number;
-    containerHeight: number;
-  }>({
-    pointerX: 0,
-    pointerY: 0,
-    initialOffsetX: 50,
-    initialOffsetY: 50,
-    containerWidth: 400,
-    containerHeight: 400,
-  });
-
   const prevJobIdRef = useRef<string | null>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -132,7 +113,6 @@ function EditPageContent() {
     resize: {
       presetId: "client-delivery-hd",
       fitMode: "contain",
-      cropOffset: { x: 50, y: 50 },
       format: "image/jpeg",
       quality: 0.9,
     },
@@ -177,11 +157,7 @@ function EditPageContent() {
 
   // Live Auto-reprocess active job when options change
   const applyOptionsToActive = useCallback(
-    (
-      newOptions: ProcessingPipelineOptions,
-      skipHistory = false,
-      immediateQueue = true
-    ) => {
+    (newOptions: ProcessingPipelineOptions, skipHistory = false) => {
       setOptions(newOptions);
       if (!skipHistory) {
         pushHistory(newOptions);
@@ -189,21 +165,7 @@ function EditPageContent() {
       if (activeJob) {
         const queue = getQueueManager();
         queue.updateJobOptions(activeJob.id, newOptions);
-
-        if (immediateQueue) {
-          if (debounceTimerRef.current) {
-            clearTimeout(debounceTimerRef.current);
-          }
-          queue.startBatch();
-        } else {
-          // Debounce background queue execution during continuous dragging (150ms)
-          if (debounceTimerRef.current) {
-            clearTimeout(debounceTimerRef.current);
-          }
-          debounceTimerRef.current = setTimeout(() => {
-            queue.startBatch();
-          }, 150);
-        }
+        queue.startBatch();
       }
     },
     [activeJob, pushHistory]
@@ -217,117 +179,6 @@ function EditPageContent() {
     setAppliedToAllToast(true);
     setTimeout(() => setAppliedToAllToast(false), 2500);
   }, [options]);
-
-  // Crop & Pan State Calculation
-  const isCoverCropActive = useMemo(() => {
-    const presetConfig = RESIZE_PRESETS[options.resize.presetId];
-    const fitMode = options.resize.fitMode || presetConfig?.fitMode;
-    if (fitMode !== "cover") return false;
-
-    if (options.resize.presetId === "custom") {
-      return !!(options.resize.customWidth && options.resize.customHeight);
-    }
-    return !!(presetConfig?.width && presetConfig?.height);
-  }, [options.resize]);
-
-  const cropAspectRatio = useMemo(() => {
-    if (!isCoverCropActive) return undefined;
-    if (options.resize.presetId === "custom") {
-      if (options.resize.customWidth && options.resize.customHeight) {
-        return `${options.resize.customWidth} / ${options.resize.customHeight}`;
-      }
-      return undefined;
-    }
-    const preset = RESIZE_PRESETS[options.resize.presetId];
-    if (preset?.width && preset?.height) {
-      return `${preset.width} / ${preset.height}`;
-    }
-    return undefined;
-  }, [isCoverCropActive, options.resize]);
-
-  const cropAxis = useMemo(() => {
-    if (!isCoverCropActive) return null;
-    const srcW = activeJob?.result?.width || activeJob?.originalDimensions?.width;
-    const srcH = activeJob?.result?.height || activeJob?.originalDimensions?.height;
-    if (!srcW || !srcH) return null;
-    const srcRatio = srcW / srcH;
-
-    let targetRatio = 1;
-    if (options.resize.presetId === "custom") {
-      const cw = options.resize.customWidth || srcW;
-      const ch = options.resize.customHeight || srcH;
-      targetRatio = cw / ch;
-    } else {
-      const presetConfig = RESIZE_PRESETS[options.resize.presetId];
-      if (presetConfig?.width && presetConfig?.height) {
-        targetRatio = presetConfig.width / presetConfig.height;
-      }
-    }
-
-    if (Math.abs(srcRatio - targetRatio) < 0.001) return "none";
-    return srcRatio > targetRatio ? "horizontal" : "vertical";
-  }, [isCoverCropActive, activeJob, options.resize]);
-
-  // Interactive Direct Canvas Drag & Pan Handlers (1:1 Natural Direct Manipulation)
-  const handlePointerDownCanvas = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isCoverCropActive || cropAxis === "none") return;
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {}
-    setIsDraggingCrop(true);
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    dragStartRef.current = {
-      pointerX: e.clientX,
-      pointerY: e.clientY,
-      initialOffsetX: options.resize.cropOffset?.x ?? 50,
-      initialOffsetY: options.resize.cropOffset?.y ?? 50,
-      containerWidth: rect.width || 400,
-      containerHeight: rect.height || 400,
-    };
-  };
-
-  const handlePointerMoveCanvas = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDraggingCrop) return;
-    const deltaX = e.clientX - dragStartRef.current.pointerX;
-    const deltaY = e.clientY - dragStartRef.current.pointerY;
-
-    const { containerWidth, containerHeight, initialOffsetX, initialOffsetY } =
-      dragStartRef.current;
-
-    // 1:1 Direct Manipulation:
-    // Dragging right reveals left content (decreases offset X)
-    const deltaPercentX = (deltaX / (containerWidth || 400)) * 100;
-    const deltaPercentY = (deltaY / (containerHeight || 400)) * 100;
-
-    let nextX = initialOffsetX - deltaPercentX;
-    let nextY = initialOffsetY - deltaPercentY;
-
-    nextX = Math.max(0, Math.min(100, Math.round(nextX * 10) / 10));
-    nextY = Math.max(0, Math.min(100, Math.round(nextY * 10) / 10));
-
-    const newOpts: ProcessingPipelineOptions = {
-      ...options,
-      resize: {
-        ...options.resize,
-        cropOffset: {
-          x: nextX,
-          y: nextY,
-        },
-      },
-    };
-    applyOptionsToActive(newOpts, true, false);
-  };
-
-  const handlePointerUpCanvas = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isDraggingCrop) {
-      try {
-        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch {}
-      setIsDraggingCrop(false);
-      applyOptionsToActive(options, false, true);
-    }
-  };
 
   // Undo / Redo Handlers
   const handleUndo = useCallback(() => {
@@ -717,61 +568,18 @@ function EditPageContent() {
                     alt={activeJob.originalFilename}
                   />
                 ) : (
-                  // Standard Preview Viewport with Direct Hardware-Accelerated Canvas Drag & Pan
-                  <div
-                    onPointerDown={handlePointerDownCanvas}
-                    onPointerMove={handlePointerMoveCanvas}
-                    onPointerUp={handlePointerUpCanvas}
-                    onPointerCancel={handlePointerUpCanvas}
-                    style={
-                      cropAspectRatio
-                        ? { aspectRatio: cropAspectRatio }
-                        : undefined
-                    }
-                    className={`relative max-h-full max-w-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/40 flex items-center justify-center min-h-0 touch-none select-none ${
-                      isCoverCropActive && cropAxis !== "none"
-                        ? isDraggingCrop
-                          ? "cursor-grabbing ring-2 ring-primary scale-[0.99] transition-transform duration-75"
-                          : "cursor-grab hover:ring-2 hover:ring-primary/40 transition-all duration-150"
-                        : ""
-                    }`}
-                  >
+                  // Standard Preview Viewport (Strictly Fit to Container)
+                  <div className="relative w-full h-full max-h-full max-w-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/40 flex items-center justify-center min-h-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={activeJob.objectUrl || activeJob.resultBlobUrl}
+                      src={activeJob.resultBlobUrl || activeJob.objectUrl}
                       alt={activeJob.originalFilename}
-                      draggable={false}
-                      style={{
-                        objectFit: isCoverCropActive ? "cover" : "contain",
-                        objectPosition: isCoverCropActive
-                          ? `${options.resize.cropOffset?.x ?? 50}% ${options.resize.cropOffset?.y ?? 50}%`
-                          : "center",
-                        transition: isDraggingCrop
-                          ? "none"
-                          : "object-position 150ms cubic-bezier(0.16, 1, 0.3, 1)",
-                      }}
-                      className="w-full h-full max-h-full max-w-full block rounded-xl pointer-events-none select-none"
+                      className="max-w-full max-h-full object-contain block rounded-xl transition-all duration-300"
                     />
-
-                    {/* Live Crop Drag Indicator Tooltip */}
-                    {isCoverCropActive && cropAxis !== "none" && (
-                      <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-md text-white text-[10px] font-medium shadow-md flex items-center gap-1.5 pointer-events-none transition-opacity">
-                        <ArrowsPointingOutIcon className="w-3 h-3 text-primary-foreground animate-pulse" />
-                        <span>
-                          {isDraggingCrop
-                            ? `Posisi: ${
-                                cropAxis === "horizontal"
-                                  ? `X = ${Math.round(options.resize.cropOffset?.x ?? 50)}%`
-                                  : `Y = ${Math.round(options.resize.cropOffset?.y ?? 50)}%`
-                              }`
-                            : "🖐️ Geser foto untuk atur crop"}
-                        </span>
-                      </div>
-                    )}
 
                     {/* Output Dimension Tag */}
                     {activeJob.result && (
-                      <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-md text-white text-[10px] font-mono font-medium shadow-md flex items-center gap-1.5 pointer-events-none">
+                      <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[10px] font-mono font-medium shadow-md flex items-center gap-1.5 pointer-events-none">
                         <span>
                           {activeJob.result.width} × {activeJob.result.height} px
                         </span>
@@ -1089,220 +897,6 @@ function EditPageContent() {
                 </button>
               </div>
             </div>
-
-            {/* Interactive Crop & Pan Controls (When Cover Crop is Active) */}
-            {isCoverCropActive && (
-              <div className="mt-1 p-3 rounded-xl bg-muted/40 border border-border/50 space-y-2.5 animate-in fade-in">
-                <div className="flex items-center justify-between text-xs font-semibold text-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <ArrowsPointingOutIcon className="w-3.5 h-3.5 text-primary" />
-                    <span>Posisi Crop (Pan Frame)</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newOpts = {
-                        ...options,
-                        resize: {
-                          ...options.resize,
-                          cropOffset: { x: 50, y: 50 },
-                        },
-                      };
-                      applyOptionsToActive(newOpts);
-                    }}
-                    className="text-[11px] text-primary hover:underline font-medium"
-                  >
-                    Reset ke Tengah
-                  </button>
-                </div>
-
-                {cropAxis === "horizontal" || cropAxis === null ? (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>Geser Horizontal (X)</span>
-                      <span className="font-mono font-medium">
-                        {options.resize.cropOffset?.x ?? 50}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={options.resize.cropOffset?.x ?? 50}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        const newOpts = {
-                          ...options,
-                          resize: {
-                            ...options.resize,
-                            cropOffset: {
-                              x: val,
-                              y: options.resize.cropOffset?.y ?? 50,
-                            },
-                          },
-                        };
-                        applyOptionsToActive(newOpts);
-                      }}
-                      className="w-full h-1.5 bg-border rounded-lg appearance-none cursor-pointer accent-primary"
-                    />
-                    <div className="flex justify-between text-[10px] text-muted-foreground/80">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newOpts = {
-                            ...options,
-                            resize: {
-                              ...options.resize,
-                              cropOffset: {
-                                x: 0,
-                                y: options.resize.cropOffset?.y ?? 50,
-                              },
-                            },
-                          };
-                          applyOptionsToActive(newOpts);
-                        }}
-                        className="hover:text-foreground font-medium"
-                      >
-                        ← Kiri (0%)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newOpts = {
-                            ...options,
-                            resize: {
-                              ...options.resize,
-                              cropOffset: {
-                                x: 50,
-                                y: options.resize.cropOffset?.y ?? 50,
-                              },
-                            },
-                          };
-                          applyOptionsToActive(newOpts);
-                        }}
-                        className="hover:text-foreground font-medium"
-                      >
-                        Tengah (50%)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newOpts = {
-                            ...options,
-                            resize: {
-                              ...options.resize,
-                              cropOffset: {
-                                x: 100,
-                                y: options.resize.cropOffset?.y ?? 50,
-                              },
-                            },
-                          };
-                          applyOptionsToActive(newOpts);
-                        }}
-                        className="hover:text-foreground font-medium"
-                      >
-                        Kanan (100%) →
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {cropAxis === "vertical" || cropAxis === null ? (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>Geser Vertikal (Y)</span>
-                      <span className="font-mono font-medium">
-                        {options.resize.cropOffset?.y ?? 50}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={options.resize.cropOffset?.y ?? 50}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        const newOpts = {
-                          ...options,
-                          resize: {
-                            ...options.resize,
-                            cropOffset: {
-                              x: options.resize.cropOffset?.x ?? 50,
-                              y: val,
-                            },
-                          },
-                        };
-                        applyOptionsToActive(newOpts);
-                      }}
-                      className="w-full h-1.5 bg-border rounded-lg appearance-none cursor-pointer accent-primary"
-                    />
-                    <div className="flex justify-between text-[10px] text-muted-foreground/80">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newOpts = {
-                            ...options,
-                            resize: {
-                              ...options.resize,
-                              cropOffset: {
-                                x: options.resize.cropOffset?.x ?? 50,
-                                y: 0,
-                              },
-                            },
-                          };
-                          applyOptionsToActive(newOpts);
-                        }}
-                        className="hover:text-foreground font-medium"
-                      >
-                        ↑ Atas (0%)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newOpts = {
-                            ...options,
-                            resize: {
-                              ...options.resize,
-                              cropOffset: {
-                                x: options.resize.cropOffset?.x ?? 50,
-                                y: 50,
-                              },
-                            },
-                          };
-                          applyOptionsToActive(newOpts);
-                        }}
-                        className="hover:text-foreground font-medium"
-                      >
-                        Tengah (50%)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newOpts = {
-                            ...options,
-                            resize: {
-                              ...options.resize,
-                              cropOffset: {
-                                x: options.resize.cropOffset?.x ?? 50,
-                                y: 100,
-                              },
-                            },
-                          };
-                          applyOptionsToActive(newOpts);
-                        }}
-                        className="hover:text-foreground font-medium"
-                      >
-                        Bawah (100%) ↓
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="text-[10px] text-muted-foreground/70 text-center italic">
-                  💡 Anda juga bisa langsung klik & geser foto di canvas
-                </div>
-              </div>
-            )}
 
             {/* Format Selector (JPEG, WebP, PNG) */}
             <div className="flex flex-col gap-1.5 pt-2 border-t border-border/50">

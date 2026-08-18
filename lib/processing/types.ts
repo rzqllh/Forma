@@ -22,17 +22,11 @@ export interface ResizePresetConfig {
   fitMode: "contain" | "cover";
 }
 
-export interface CropOffset {
-  x: number; // 0 to 100% (default: 50% = center)
-  y: number; // 0 to 100% (default: 50% = center)
-}
-
 export interface ResizeOptions {
   presetId: ResizePresetId;
   customWidth?: number;
   customHeight?: number;
   fitMode?: "contain" | "cover";
-  cropOffset?: CropOffset;
   format: OutputFormat;
   quality: number; // 0.1 to 1.0 (e.g. 0.85)
 }
