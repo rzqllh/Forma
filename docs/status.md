@@ -29,23 +29,25 @@ No production write testing was performed during the audit. Production API check
 
 - Next.js static export builds successfully without embedded secrets.
 - TypeScript compilation succeeds with 0 errors.
-- Worker API enforces fail-closed auth, Cloudflare Access header support, strict CORS allowlist, and HTTPS Cloudinary URL validation.
+- Worker API enforces cryptographic RS256 JWKS validation for Cloudflare Access JWT, fail-closed auth, strict credentialed CORS allowlist, and HTTPS Cloudinary URL validation.
 - `saveBatchHistory` returns a discriminated union (`remote-saved` vs `local-only`), exposing truthful server vs offline fallback messaging in the UI.
 - Local storage history soft-delete and restore preserve full unexpired batch collections.
-- Unit test suite runs 40 tests cleanly with 0 unexpected stderr warnings and zero network attempts.
-- Basic resize dimension calculations, format selection, color application, watermark compositing, individual blob download, preset CRUD routes, and D1 schema exist.
-- Light and dark theme tokens exist, but both themes have not passed complete acceptance.
+- Per-photo option isolation implemented in Studio editor with intentional "Terapkan ke Semua" bulk copying.
+- Fullscreen inspection modal mounted via React Portal to `document.body` with instant PNG clipboard copy utility and mobile long-press support.
+- Unit test suite runs 49 tests cleanly across 6 suites with 0 unexpected stderr warnings and zero network attempts.
+- Basic resize dimension calculations, optical center-crop, format selection, color application, watermark compositing, individual blob download, preset CRUD routes, and D1 schema exist.
+- Light and dark theme tokens exist, with fit-to-screen studio layout and isolated scroll containers.
 
 ## Verified Commands
 
 | Purpose | Command | Result | Verified On |
 |---|---|---|---|
 | Typecheck | `pnpm typecheck` | 0 errors | 2026-08-18 (Node v22 / Windows) |
-| Unit tests | `pnpm test -- --run` | Exit 0, 48 passed across 6 test suites with 0 stderr noise | 2026-08-18 |
+| Unit tests | `pnpm test -- --run` | Exit 0, 49 passed across 6 test suites with 0 stderr noise | 2026-08-18 |
 | Lint | `pnpm lint` | **Fail**: interactive ESLint setup prompt, not a reproducible quality gate | 2026-08-18 |
 | Production build | `pnpm build` | Static export succeeded into `out/` (zero client secrets found) | 2026-08-18 |
 
 ## Next Authorized Decision
 
-Proceed to Gate 1: Processing Foundation (dedicated Web Worker thread boundary, cancellation & stale-result protocol, truthful metadata/ICC processing pipeline, and visual fixtures).
+Plan and scope V2 roadmap (dedicated Web Worker thread architecture, advanced crop manipulation, cancellation & stale-result protocol, and batch processing enhancements).
 
