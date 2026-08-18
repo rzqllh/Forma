@@ -1,4 +1,4 @@
-name = "forma-api"
+name = "forma"
 main = "workers/api/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -13,7 +13,3 @@ migrations_dir = "db/migrations"
 # Daily Scheduled Purge Cron Trigger (runs daily at 03:00 UTC)
 [triggers]
 crons = ["0 3 * * *"]
-
-# Static site output for Cloudflare Pages
-[pages]
-pages_build_output_dir = "out"
