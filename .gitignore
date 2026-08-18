@@ -46,7 +46,9 @@ Thumbs.db
 !.vscode/settings.json
 .idea/
 
-# Scratch & Temporary files
+# Scratch, AI & Temporary files
 scratch/
 tmp/
 temp/
+.agents/
+EXECUTOR_PROMPT.txt
