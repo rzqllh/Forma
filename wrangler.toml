@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "forma-db"
-database_id = "forma-db-production"
+database_id = "43e72010-d40c-4069-a4fd-3804227be2ea"
 migrations_dir = "db/migrations"
 
 # Daily Scheduled Purge Cron Trigger (runs daily at 03:00 UTC)
