@@ -93,14 +93,19 @@ function EditPageContent() {
     pointerY: number;
     initialOffsetX: number;
     initialOffsetY: number;
+    containerWidth: number;
+    containerHeight: number;
   }>({
     pointerX: 0,
     pointerY: 0,
     initialOffsetX: 50,
     initialOffsetY: 50,
+    containerWidth: 400,
+    containerHeight: 400,
   });
 
   const prevJobIdRef = useRef<string | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -172,7 +177,11 @@ function EditPageContent() {
 
   // Live Auto-reprocess active job when options change
   const applyOptionsToActive = useCallback(
-    (newOptions: ProcessingPipelineOptions, skipHistory = false) => {
+    (
+      newOptions: ProcessingPipelineOptions,
+      skipHistory = false,
+      immediateQueue = true
+    ) => {
       setOptions(newOptions);
       if (!skipHistory) {
         pushHistory(newOptions);
@@ -180,7 +189,21 @@ function EditPageContent() {
       if (activeJob) {
         const queue = getQueueManager();
         queue.updateJobOptions(activeJob.id, newOptions);
-        queue.startBatch();
+
+        if (immediateQueue) {
+          if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+          }
+          queue.startBatch();
+        } else {
+          // Debounce background queue execution during continuous dragging (150ms)
+          if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+          }
+          debounceTimerRef.current = setTimeout(() => {
+            queue.startBatch();
+          }, 150);
+        }
       }
     },
     [activeJob, pushHistory]
@@ -207,6 +230,21 @@ function EditPageContent() {
     return !!(presetConfig?.width && presetConfig?.height);
   }, [options.resize]);
 
+  const cropAspectRatio = useMemo(() => {
+    if (!isCoverCropActive) return undefined;
+    if (options.resize.presetId === "custom") {
+      if (options.resize.customWidth && options.resize.customHeight) {
+        return `${options.resize.customWidth} / ${options.resize.customHeight}`;
+      }
+      return undefined;
+    }
+    const preset = RESIZE_PRESETS[options.resize.presetId];
+    if (preset?.width && preset?.height) {
+      return `${preset.width} / ${preset.height}`;
+    }
+    return undefined;
+  }, [isCoverCropActive, options.resize]);
+
   const cropAxis = useMemo(() => {
     if (!isCoverCropActive) return null;
     const srcW = activeJob?.result?.width || activeJob?.originalDimensions?.width;
@@ -230,18 +268,22 @@ function EditPageContent() {
     return srcRatio > targetRatio ? "horizontal" : "vertical";
   }, [isCoverCropActive, activeJob, options.resize]);
 
-  // Interactive Direct Canvas Drag & Pan Handlers
+  // Interactive Direct Canvas Drag & Pan Handlers (1:1 Natural Direct Manipulation)
   const handlePointerDownCanvas = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isCoverCropActive || cropAxis === "none") return;
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {}
     setIsDraggingCrop(true);
+
+    const rect = e.currentTarget.getBoundingClientRect();
     dragStartRef.current = {
       pointerX: e.clientX,
       pointerY: e.clientY,
       initialOffsetX: options.resize.cropOffset?.x ?? 50,
       initialOffsetY: options.resize.cropOffset?.y ?? 50,
+      containerWidth: rect.width || 400,
+      containerHeight: rect.height || 400,
     };
   };
 
@@ -250,13 +292,19 @@ function EditPageContent() {
     const deltaX = e.clientX - dragStartRef.current.pointerX;
     const deltaY = e.clientY - dragStartRef.current.pointerY;
 
-    // Pan Physics: Dragging photo left shifts crop frame right
-    const sensitivity = 0.35;
-    let nextX = dragStartRef.current.initialOffsetX - deltaX * sensitivity;
-    let nextY = dragStartRef.current.initialOffsetY - deltaY * sensitivity;
+    const { containerWidth, containerHeight, initialOffsetX, initialOffsetY } =
+      dragStartRef.current;
 
-    nextX = Math.max(0, Math.min(100, Math.round(nextX)));
-    nextY = Math.max(0, Math.min(100, Math.round(nextY)));
+    // 1:1 Direct Manipulation:
+    // Dragging right reveals left content (decreases offset X)
+    const deltaPercentX = (deltaX / (containerWidth || 400)) * 100;
+    const deltaPercentY = (deltaY / (containerHeight || 400)) * 100;
+
+    let nextX = initialOffsetX - deltaPercentX;
+    let nextY = initialOffsetY - deltaPercentY;
+
+    nextX = Math.max(0, Math.min(100, Math.round(nextX * 10) / 10));
+    nextY = Math.max(0, Math.min(100, Math.round(nextY * 10) / 10));
 
     const newOpts: ProcessingPipelineOptions = {
       ...options,
@@ -268,7 +316,7 @@ function EditPageContent() {
         },
       },
     };
-    applyOptionsToActive(newOpts, true);
+    applyOptionsToActive(newOpts, true, false);
   };
 
   const handlePointerUpCanvas = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -277,7 +325,7 @@ function EditPageContent() {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
       } catch {}
       setIsDraggingCrop(false);
-      pushHistory(options);
+      applyOptionsToActive(options, false, true);
     }
   };
 
@@ -669,38 +717,52 @@ function EditPageContent() {
                     alt={activeJob.originalFilename}
                   />
                 ) : (
-                  // Standard Preview Viewport with Direct Canvas Drag & Pan
+                  // Standard Preview Viewport with Direct Hardware-Accelerated Canvas Drag & Pan
                   <div
                     onPointerDown={handlePointerDownCanvas}
                     onPointerMove={handlePointerMoveCanvas}
                     onPointerUp={handlePointerUpCanvas}
                     onPointerCancel={handlePointerUpCanvas}
-                    className={`relative w-full h-full max-h-full max-w-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/40 flex items-center justify-center min-h-0 touch-none select-none transition-all ${
+                    style={
+                      cropAspectRatio
+                        ? { aspectRatio: cropAspectRatio }
+                        : undefined
+                    }
+                    className={`relative max-h-full max-w-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/40 flex items-center justify-center min-h-0 touch-none select-none ${
                       isCoverCropActive && cropAxis !== "none"
                         ? isDraggingCrop
-                          ? "cursor-grabbing ring-2 ring-primary"
-                          : "cursor-grab hover:ring-1 hover:ring-primary/50"
+                          ? "cursor-grabbing ring-2 ring-primary scale-[0.99] transition-transform duration-75"
+                          : "cursor-grab hover:ring-2 hover:ring-primary/40 transition-all duration-150"
                         : ""
                     }`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={activeJob.resultBlobUrl || activeJob.objectUrl}
+                      src={activeJob.objectUrl || activeJob.resultBlobUrl}
                       alt={activeJob.originalFilename}
                       draggable={false}
-                      className="max-w-full max-h-full object-contain block rounded-xl pointer-events-none select-none"
+                      style={{
+                        objectFit: isCoverCropActive ? "cover" : "contain",
+                        objectPosition: isCoverCropActive
+                          ? `${options.resize.cropOffset?.x ?? 50}% ${options.resize.cropOffset?.y ?? 50}%`
+                          : "center",
+                        transition: isDraggingCrop
+                          ? "none"
+                          : "object-position 150ms cubic-bezier(0.16, 1, 0.3, 1)",
+                      }}
+                      className="w-full h-full max-h-full max-w-full block rounded-xl pointer-events-none select-none"
                     />
 
                     {/* Live Crop Drag Indicator Tooltip */}
                     {isCoverCropActive && cropAxis !== "none" && (
-                      <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[10px] font-medium shadow-md flex items-center gap-1.5 pointer-events-none transition-opacity">
+                      <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-md text-white text-[10px] font-medium shadow-md flex items-center gap-1.5 pointer-events-none transition-opacity">
                         <ArrowsPointingOutIcon className="w-3 h-3 text-primary-foreground animate-pulse" />
                         <span>
                           {isDraggingCrop
                             ? `Posisi: ${
                                 cropAxis === "horizontal"
-                                  ? `X = ${options.resize.cropOffset?.x ?? 50}%`
-                                  : `Y = ${options.resize.cropOffset?.y ?? 50}%`
+                                  ? `X = ${Math.round(options.resize.cropOffset?.x ?? 50)}%`
+                                  : `Y = ${Math.round(options.resize.cropOffset?.y ?? 50)}%`
                               }`
                             : "🖐️ Geser foto untuk atur crop"}
                         </span>
@@ -709,7 +771,7 @@ function EditPageContent() {
 
                     {/* Output Dimension Tag */}
                     {activeJob.result && (
-                      <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[10px] font-mono font-medium shadow-md flex items-center gap-1.5 pointer-events-none">
+                      <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/80 backdrop-blur-md text-white text-[10px] font-mono font-medium shadow-md flex items-center gap-1.5 pointer-events-none">
                         <span>
                           {activeJob.result.width} × {activeJob.result.height} px
                         </span>
