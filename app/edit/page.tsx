@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -84,6 +84,23 @@ function EditPageContent() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [appliedToAllToast, setAppliedToAllToast] = useState(false);
+
+  // Drag & Pan state on Canvas
+  const [isDraggingCrop, setIsDraggingCrop] = useState(false);
+  const dragStartRef = useRef<{
+    pointerX: number;
+    pointerY: number;
+    initialOffsetX: number;
+    initialOffsetY: number;
+  }>({
+    pointerX: 0,
+    pointerY: 0,
+    initialOffsetX: 50,
+    initialOffsetY: 50,
+  });
+
+  const prevJobIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -103,13 +120,14 @@ function EditPageContent() {
     }
   };
 
-  // Editor Operations State
+  // Editor Operations State (loaded per-photo)
   const [options, setOptions] = useState<ProcessingPipelineOptions>({
     stripMetadata: true,
     watermark: undefined,
     resize: {
       presetId: "client-delivery-hd",
       fitMode: "contain",
+      cropOffset: { x: 50, y: 50 },
       format: "image/jpeg",
       quality: 0.9,
     },
@@ -139,6 +157,19 @@ function EditPageContent() {
     return jobs.find((j) => j.id === activeJobId) || jobs[0] || null;
   }, [jobs, activeJobId]);
 
+  // Per-Photo Isolation: Sync editor options when switching active job
+  useEffect(() => {
+    if (activeJob && activeJob.id !== prevJobIdRef.current) {
+      prevJobIdRef.current = activeJob.id;
+      if (activeJob.options) {
+        setOptions(activeJob.options);
+        setSelectedPresetId(activeJob.options.watermark?.preset?.id || "");
+        setHistory([activeJob.options]);
+        setHistoryIndex(0);
+      }
+    }
+  }, [activeJob]);
+
   // Live Auto-reprocess active job when options change
   const applyOptionsToActive = useCallback(
     (newOptions: ProcessingPipelineOptions, skipHistory = false) => {
@@ -154,6 +185,101 @@ function EditPageContent() {
     },
     [activeJob, pushHistory]
   );
+
+  // Explicit Bulk Action: Apply active settings to all photos
+  const handleApplyToAll = useCallback(() => {
+    const queue = getQueueManager();
+    queue.updateAllJobOptions(options);
+    queue.startBatch();
+    setAppliedToAllToast(true);
+    setTimeout(() => setAppliedToAllToast(false), 2500);
+  }, [options]);
+
+  // Crop & Pan State Calculation
+  const isCoverCropActive = useMemo(() => {
+    const presetConfig = RESIZE_PRESETS[options.resize.presetId];
+    const fitMode = options.resize.fitMode || presetConfig?.fitMode;
+    if (fitMode !== "cover") return false;
+
+    if (options.resize.presetId === "custom") {
+      return !!(options.resize.customWidth && options.resize.customHeight);
+    }
+    return !!(presetConfig?.width && presetConfig?.height);
+  }, [options.resize]);
+
+  const cropAxis = useMemo(() => {
+    if (!isCoverCropActive) return null;
+    const srcW = activeJob?.result?.width || activeJob?.originalDimensions?.width;
+    const srcH = activeJob?.result?.height || activeJob?.originalDimensions?.height;
+    if (!srcW || !srcH) return null;
+    const srcRatio = srcW / srcH;
+
+    let targetRatio = 1;
+    if (options.resize.presetId === "custom") {
+      const cw = options.resize.customWidth || srcW;
+      const ch = options.resize.customHeight || srcH;
+      targetRatio = cw / ch;
+    } else {
+      const presetConfig = RESIZE_PRESETS[options.resize.presetId];
+      if (presetConfig?.width && presetConfig?.height) {
+        targetRatio = presetConfig.width / presetConfig.height;
+      }
+    }
+
+    if (Math.abs(srcRatio - targetRatio) < 0.001) return "none";
+    return srcRatio > targetRatio ? "horizontal" : "vertical";
+  }, [isCoverCropActive, activeJob, options.resize]);
+
+  // Interactive Direct Canvas Drag & Pan Handlers
+  const handlePointerDownCanvas = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isCoverCropActive || cropAxis === "none") return;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+    setIsDraggingCrop(true);
+    dragStartRef.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      initialOffsetX: options.resize.cropOffset?.x ?? 50,
+      initialOffsetY: options.resize.cropOffset?.y ?? 50,
+    };
+  };
+
+  const handlePointerMoveCanvas = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingCrop) return;
+    const deltaX = e.clientX - dragStartRef.current.pointerX;
+    const deltaY = e.clientY - dragStartRef.current.pointerY;
+
+    // Pan Physics: Dragging photo left shifts crop frame right
+    const sensitivity = 0.35;
+    let nextX = dragStartRef.current.initialOffsetX - deltaX * sensitivity;
+    let nextY = dragStartRef.current.initialOffsetY - deltaY * sensitivity;
+
+    nextX = Math.max(0, Math.min(100, Math.round(nextX)));
+    nextY = Math.max(0, Math.min(100, Math.round(nextY)));
+
+    const newOpts: ProcessingPipelineOptions = {
+      ...options,
+      resize: {
+        ...options.resize,
+        cropOffset: {
+          x: nextX,
+          y: nextY,
+        },
+      },
+    };
+    applyOptionsToActive(newOpts, true);
+  };
+
+  const handlePointerUpCanvas = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDraggingCrop) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+      setIsDraggingCrop(false);
+      pushHistory(options);
+    }
+  };
 
   // Undo / Redo Handlers
   const handleUndo = useCallback(() => {
@@ -345,7 +471,6 @@ function EditPageContent() {
 
   const handleStartBatch = () => {
     const queue = getQueueManager();
-    queue.updateAllJobOptions(options);
     queue.startBatch();
   };
 
@@ -544,18 +669,47 @@ function EditPageContent() {
                     alt={activeJob.originalFilename}
                   />
                 ) : (
-                  // Standard Preview Viewport (Strictly Fit to Container)
-                  <div className="relative w-full h-full max-h-full max-w-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/40 flex items-center justify-center min-h-0">
+                  // Standard Preview Viewport with Direct Canvas Drag & Pan
+                  <div
+                    onPointerDown={handlePointerDownCanvas}
+                    onPointerMove={handlePointerMoveCanvas}
+                    onPointerUp={handlePointerUpCanvas}
+                    onPointerCancel={handlePointerUpCanvas}
+                    className={`relative w-full h-full max-h-full max-w-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/40 flex items-center justify-center min-h-0 touch-none select-none transition-all ${
+                      isCoverCropActive && cropAxis !== "none"
+                        ? isDraggingCrop
+                          ? "cursor-grabbing ring-2 ring-primary"
+                          : "cursor-grab hover:ring-1 hover:ring-primary/50"
+                        : ""
+                    }`}
+                  >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={activeJob.resultBlobUrl || activeJob.objectUrl}
                       alt={activeJob.originalFilename}
-                      className="max-w-full max-h-full object-contain block rounded-xl transition-all duration-300"
+                      draggable={false}
+                      className="max-w-full max-h-full object-contain block rounded-xl pointer-events-none select-none"
                     />
+
+                    {/* Live Crop Drag Indicator Tooltip */}
+                    {isCoverCropActive && cropAxis !== "none" && (
+                      <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[10px] font-medium shadow-md flex items-center gap-1.5 pointer-events-none transition-opacity">
+                        <ArrowsPointingOutIcon className="w-3 h-3 text-primary-foreground animate-pulse" />
+                        <span>
+                          {isDraggingCrop
+                            ? `Posisi: ${
+                                cropAxis === "horizontal"
+                                  ? `X = ${options.resize.cropOffset?.x ?? 50}%`
+                                  : `Y = ${options.resize.cropOffset?.y ?? 50}%`
+                              }`
+                            : "🖐️ Geser foto untuk atur crop"}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Output Dimension Tag */}
                     {activeJob.result && (
-                      <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[10px] font-mono font-medium shadow-md flex items-center gap-1.5">
+                      <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[10px] font-mono font-medium shadow-md flex items-center gap-1.5 pointer-events-none">
                         <span>
                           {activeJob.result.width} × {activeJob.result.height} px
                         </span>
@@ -614,14 +768,42 @@ function EditPageContent() {
         {/* CONTROLS & OPERATIONS SIDEBAR (ONLY THIS SECTION SCROLLS) */}
         {/* ----------------------------------------------------------- */}
         <div className="w-full lg:w-96 lg:max-w-sm border-t lg:border-t-0 lg:border-l border-border/50 bg-card/60 backdrop-blur-xl p-4 sm:p-5 flex flex-col gap-4 order-2 lg:order-2 shrink-0 overflow-y-auto min-h-0 max-h-[45vh] lg:max-h-full scrollbar-thin">
-          {/* Section Header */}
-          <div className="flex items-center justify-between pb-1 border-b border-border/40 shrink-0">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Pengaturan Finishing
-            </span>
-            <span className="text-[11px] text-primary font-semibold">
-              Foto #{jobs.findIndex((j) => j.id === activeJob?.id) + 1}
-            </span>
+          {/* Section Header with Explicit Bulk Action */}
+          <div className="flex items-center justify-between pb-2 border-b border-border/40 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Pengaturan Finishing
+              </span>
+              <span className="text-[11px] text-primary font-semibold">
+                Foto #{jobs.findIndex((j) => j.id === activeJob?.id) + 1}
+              </span>
+            </div>
+
+            {/* Explicit Bulk Sync Button */}
+            {jobs.length > 1 && (
+              <button
+                type="button"
+                onClick={handleApplyToAll}
+                className={`min-h-[32px] px-2.5 py-1 flex items-center gap-1 rounded-lg text-[11px] font-semibold transition-all active:scale-95 border ${
+                  appliedToAllToast
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                    : "bg-muted hover:bg-muted/80 text-foreground border-border/60"
+                }`}
+                title="Terapkan pengaturan foto ini ke semua foto di batch"
+              >
+                {appliedToAllToast ? (
+                  <>
+                    <CheckIcon className="w-3.5 h-3.5" />
+                    <span>Disalin ke Semua!</span>
+                  </>
+                ) : (
+                  <>
+                    <DocumentDuplicateIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span>Terapkan ke Semua</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Operation 1: EXIF Metadata Stripping */}
@@ -845,6 +1027,220 @@ function EditPageContent() {
                 </button>
               </div>
             </div>
+
+            {/* Interactive Crop & Pan Controls (When Cover Crop is Active) */}
+            {isCoverCropActive && (
+              <div className="mt-1 p-3 rounded-xl bg-muted/40 border border-border/50 space-y-2.5 animate-in fade-in">
+                <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <ArrowsPointingOutIcon className="w-3.5 h-3.5 text-primary" />
+                    <span>Posisi Crop (Pan Frame)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newOpts = {
+                        ...options,
+                        resize: {
+                          ...options.resize,
+                          cropOffset: { x: 50, y: 50 },
+                        },
+                      };
+                      applyOptionsToActive(newOpts);
+                    }}
+                    className="text-[11px] text-primary hover:underline font-medium"
+                  >
+                    Reset ke Tengah
+                  </button>
+                </div>
+
+                {cropAxis === "horizontal" || cropAxis === null ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>Geser Horizontal (X)</span>
+                      <span className="font-mono font-medium">
+                        {options.resize.cropOffset?.x ?? 50}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={options.resize.cropOffset?.x ?? 50}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const newOpts = {
+                          ...options,
+                          resize: {
+                            ...options.resize,
+                            cropOffset: {
+                              x: val,
+                              y: options.resize.cropOffset?.y ?? 50,
+                            },
+                          },
+                        };
+                        applyOptionsToActive(newOpts);
+                      }}
+                      className="w-full h-1.5 bg-border rounded-lg appearance-none cursor-pointer accent-primary"
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground/80">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newOpts = {
+                            ...options,
+                            resize: {
+                              ...options.resize,
+                              cropOffset: {
+                                x: 0,
+                                y: options.resize.cropOffset?.y ?? 50,
+                              },
+                            },
+                          };
+                          applyOptionsToActive(newOpts);
+                        }}
+                        className="hover:text-foreground font-medium"
+                      >
+                        ← Kiri (0%)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newOpts = {
+                            ...options,
+                            resize: {
+                              ...options.resize,
+                              cropOffset: {
+                                x: 50,
+                                y: options.resize.cropOffset?.y ?? 50,
+                              },
+                            },
+                          };
+                          applyOptionsToActive(newOpts);
+                        }}
+                        className="hover:text-foreground font-medium"
+                      >
+                        Tengah (50%)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newOpts = {
+                            ...options,
+                            resize: {
+                              ...options.resize,
+                              cropOffset: {
+                                x: 100,
+                                y: options.resize.cropOffset?.y ?? 50,
+                              },
+                            },
+                          };
+                          applyOptionsToActive(newOpts);
+                        }}
+                        className="hover:text-foreground font-medium"
+                      >
+                        Kanan (100%) →
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {cropAxis === "vertical" || cropAxis === null ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>Geser Vertikal (Y)</span>
+                      <span className="font-mono font-medium">
+                        {options.resize.cropOffset?.y ?? 50}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={options.resize.cropOffset?.y ?? 50}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const newOpts = {
+                          ...options,
+                          resize: {
+                            ...options.resize,
+                            cropOffset: {
+                              x: options.resize.cropOffset?.x ?? 50,
+                              y: val,
+                            },
+                          },
+                        };
+                        applyOptionsToActive(newOpts);
+                      }}
+                      className="w-full h-1.5 bg-border rounded-lg appearance-none cursor-pointer accent-primary"
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground/80">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newOpts = {
+                            ...options,
+                            resize: {
+                              ...options.resize,
+                              cropOffset: {
+                                x: options.resize.cropOffset?.x ?? 50,
+                                y: 0,
+                              },
+                            },
+                          };
+                          applyOptionsToActive(newOpts);
+                        }}
+                        className="hover:text-foreground font-medium"
+                      >
+                        ↑ Atas (0%)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newOpts = {
+                            ...options,
+                            resize: {
+                              ...options.resize,
+                              cropOffset: {
+                                x: options.resize.cropOffset?.x ?? 50,
+                                y: 50,
+                              },
+                            },
+                          };
+                          applyOptionsToActive(newOpts);
+                        }}
+                        className="hover:text-foreground font-medium"
+                      >
+                        Tengah (50%)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newOpts = {
+                            ...options,
+                            resize: {
+                              ...options.resize,
+                              cropOffset: {
+                                x: options.resize.cropOffset?.x ?? 50,
+                                y: 100,
+                              },
+                            },
+                          };
+                          applyOptionsToActive(newOpts);
+                        }}
+                        className="hover:text-foreground font-medium"
+                      >
+                        Bawah (100%) ↓
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="text-[10px] text-muted-foreground/70 text-center italic">
+                  💡 Anda juga bisa langsung klik & geser foto di canvas
+                </div>
+              </div>
+            )}
 
             {/* Format Selector (JPEG, WebP, PNG) */}
             <div className="flex flex-col gap-1.5 pt-2 border-t border-border/50">

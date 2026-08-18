@@ -83,6 +83,11 @@ export function calculateTargetDimensions(
   const preset = RESIZE_PRESETS[options.presetId] || RESIZE_PRESETS.original;
   const fitMode = options.fitMode || preset.fitMode;
 
+  const rawOffsetX = options.cropOffset?.x ?? 50;
+  const rawOffsetY = options.cropOffset?.y ?? 50;
+  const offsetX = Math.max(0, Math.min(100, rawOffsetX));
+  const offsetY = Math.max(0, Math.min(100, rawOffsetY));
+
   if (preset.id === "original") {
     return {
       targetWidth: srcWidth,
@@ -112,10 +117,12 @@ export function calculateTargetDimensions(
 
       if (srcRatio > targetRatio) {
         sW = srcHeight * targetRatio;
-        sX = (srcWidth - sW) / 2;
+        const maxShiftX = srcWidth - sW;
+        sX = maxShiftX * (offsetX / 100);
       } else {
         sH = srcWidth / targetRatio;
-        sY = (srcHeight - sH) / 2;
+        const maxShiftY = srcHeight - sH;
+        sY = maxShiftY * (offsetY / 100);
       }
 
       return {
@@ -198,10 +205,12 @@ export function calculateTargetDimensions(
 
       if (srcRatio > targetRatio) {
         sW = srcHeight * targetRatio;
-        sX = (srcWidth - sW) / 2;
+        const maxShiftX = srcWidth - sW;
+        sX = maxShiftX * (offsetX / 100);
       } else {
         sH = srcWidth / targetRatio;
-        sY = (srcHeight - sH) / 2;
+        const maxShiftY = srcHeight - sH;
+        sY = maxShiftY * (offsetY / 100);
       }
 
       return {
