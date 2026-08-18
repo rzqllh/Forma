@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AdjustmentsHorizontalIcon from "@heroicons/react/24/outline/AdjustmentsHorizontalIcon";
@@ -14,10 +14,13 @@ import ArrowDownTrayIcon from "@heroicons/react/24/outline/ArrowDownTrayIcon";
 import ArrowLeftIcon from "@heroicons/react/24/outline/ArrowLeftIcon";
 import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
 import PhotoIcon from "@heroicons/react/24/outline/PhotoIcon";
+import MagnifyingGlassPlusIcon from "@heroicons/react/24/outline/MagnifyingGlassPlusIcon";
+import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 
 import { getQueueManager } from "@/lib/queue/manager";
 import { QueueJob, QueueSummary } from "@/lib/queue/types";
 import {
+  OutputFormat,
   ProcessingPipelineOptions,
   ResizePresetId,
 } from "@/lib/processing/types";
@@ -25,6 +28,19 @@ import { RESIZE_PRESETS } from "@/lib/processing/resize";
 import { fetchPresets } from "@/lib/api/client";
 import { Preset } from "@/db/schema";
 import { SplitComparisonSlider } from "@/components/SplitComparisonSlider";
+
+const PRESET_DISPLAY_DATA: Record<
+  ResizePresetId,
+  { name: string; tag: string }
+> = {
+  original: { name: "Ukuran Asli", tag: "Resolusi Penuh" },
+  "instagram-portrait": { name: "IG Portrait", tag: "4:5 • 1080×1350" },
+  "instagram-square": { name: "IG Square", tag: "1:1 • 1080×1080" },
+  "instagram-story": { name: "IG Story / Reels", tag: "9:16 • 1080×1920" },
+  "web-portfolio": { name: "Web Portfolio", tag: "Maks. 2048px" },
+  "client-delivery-hd": { name: "Client Delivery", tag: "Maks. 2560px HD" },
+  custom: { name: "Dimensi Kustom", tag: "Kustom" },
+};
 
 export default function EditPage() {
   const router = useRouter();
@@ -42,6 +58,7 @@ export default function EditPage() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   // Editor Operations State
   const [options, setOptions] = useState<ProcessingPipelineOptions>({
@@ -81,27 +98,42 @@ export default function EditPage() {
     return jobs.find((j) => j.id === activeJobId) || jobs[0] || null;
   }, [jobs, activeJobId]);
 
+  // Live Auto-reprocess active job when options change
+  const applyOptionsToActive = useCallback(
+    (newOptions: ProcessingPipelineOptions) => {
+      setOptions(newOptions);
+      if (activeJob) {
+        const queue = getQueueManager();
+        queue.updateJobOptions(activeJob.id, newOptions);
+        queue.startBatch();
+      }
+    },
+    [activeJob]
+  );
+
   const handleSelectJob = (job: QueueJob) => {
     setActiveJobId(job.id);
   };
 
   const handleToggleMetadata = () => {
-    setOptions((prev) => ({
-      ...prev,
-      stripMetadata: !prev.stripMetadata,
-    }));
+    const newOpts = {
+      ...options,
+      stripMetadata: !options.stripMetadata,
+    };
+    applyOptionsToActive(newOpts);
   };
 
   const handleSelectPreset = (presetId: string) => {
     setSelectedPresetId(presetId);
     if (!presetId) {
-      setOptions((prev) => ({ ...prev, watermark: undefined }));
+      const newOpts = { ...options, watermark: undefined };
+      applyOptionsToActive(newOpts);
       return;
     }
     const preset = presets.find((p) => p.id === presetId);
     if (preset) {
-      setOptions((prev) => ({
-        ...prev,
+      const newOpts = {
+        ...options,
         watermark: {
           enabled: true,
           preset: {
@@ -111,56 +143,104 @@ export default function EditPage() {
             settings: preset.settings,
           },
         },
-      }));
+      };
+      applyOptionsToActive(newOpts);
     }
   };
 
   const handleResizePresetChange = (presetKey: ResizePresetId) => {
-    setOptions((prev) => ({
-      ...prev,
+    const newOpts = {
+      ...options,
       resize: {
-        ...prev.resize,
+        ...options.resize,
         presetId: presetKey,
       },
-    }));
+    };
+    applyOptionsToActive(newOpts);
+  };
+
+  const handleFitModeChange = (fitMode: "cover" | "contain") => {
+    const newOpts = {
+      ...options,
+      resize: {
+        ...options.resize,
+        fitMode,
+      },
+    };
+    applyOptionsToActive(newOpts);
+  };
+
+  const handleFormatChange = (format: OutputFormat) => {
+    const newOpts = {
+      ...options,
+      resize: {
+        ...options.resize,
+        format,
+      },
+    };
+    applyOptionsToActive(newOpts);
+  };
+
+  const handleQualityChange = (quality: number) => {
+    const newOpts = {
+      ...options,
+      resize: {
+        ...options.resize,
+        quality,
+      },
+    };
+    applyOptionsToActive(newOpts);
   };
 
   const handleColorToggle = () => {
-    setOptions((prev) => ({
-      ...prev,
+    const newOpts = {
+      ...options,
       colorAdjustment: {
-        enabled: !prev.colorAdjustment?.enabled,
-        intensityPct: prev.colorAdjustment?.intensityPct || 50,
+        enabled: !options.colorAdjustment?.enabled,
+        intensityPct: options.colorAdjustment?.intensityPct || 50,
       },
-    }));
+    };
+    applyOptionsToActive(newOpts);
   };
 
   const handleColorIntensityChange = (intensityPct: number) => {
-    setOptions((prev) => ({
-      ...prev,
+    const newOpts = {
+      ...options,
       colorAdjustment: {
         enabled: true,
         intensityPct,
       },
-    }));
+    };
+    applyOptionsToActive(newOpts);
   };
 
   const handleResetColor = () => {
-    setOptions((prev) => ({
-      ...prev,
+    const newOpts = {
+      ...options,
       colorAdjustment: {
         enabled: false,
         intensityPct: 50,
       },
-    }));
+    };
+    applyOptionsToActive(newOpts);
   };
 
   const handleStartBatch = () => {
     const queue = getQueueManager();
-    jobs.forEach((job) => {
-      queue.updateJobOptions(job.id, options);
-    });
+    queue.updateAllJobOptions(options);
+    queue.startBatch();
   };
+
+  // Keyboard shortcut for lightbox (Esc to close)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && lightboxOpen) {
+        setLightboxOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxOpen]);
 
   if (jobs.length === 0) {
     return (
@@ -187,7 +267,7 @@ export default function EditPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden animate-fade-in">
       {/* Top Header Controls Bar */}
-      <div className="h-12 border-b border-border/50 bg-card/60 backdrop-blur-md px-6 flex items-center justify-between shrink-0">
+      <div className="h-12 border-b border-border/50 bg-card/60 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <Link
             href="/"
@@ -235,9 +315,9 @@ export default function EditPage() {
         {/* ----------------------------------------------------------- */}
         {/* LEFT COLUMN: OPERATIONS & TUNING CONTROLS */}
         {/* ----------------------------------------------------------- */}
-        <div className="w-80 sm:w-96 border-r border-border/50 bg-card/60 backdrop-blur-xl overflow-y-auto p-5 sm:p-6 flex flex-col gap-6 shrink-0">
+        <div className="w-80 sm:w-96 border-r border-border/50 bg-card/60 backdrop-blur-xl overflow-y-auto p-4 sm:p-6 flex flex-col gap-5 shrink-0">
           {/* Operation 1: EXIF Metadata Stripping */}
-          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 sm:p-5 flex flex-col gap-3 shadow-sm hover:border-primary/40 transition-colors">
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-2.5 shadow-sm hover:border-primary/40 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-primary/10 text-primary">
@@ -261,12 +341,12 @@ export default function EditPage() {
               />
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Sangat disarankan sebelum kirim foto ke klien agar lokasi rumah dan privasi klien tetap aman.
+              Menghapus lokasi GPS, model kamera, dan nomor seri hardware secara aman demi privasi klien interior.
             </p>
           </div>
 
           {/* Operation 2: Watermark Preset Selection */}
-          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 sm:p-5 flex flex-col gap-3.5 shadow-sm hover:border-primary/40 transition-colors">
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3 shadow-sm hover:border-primary/40 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-accent/10 text-accent">
@@ -304,10 +384,10 @@ export default function EditPage() {
             </select>
 
             {options.watermark?.preset && (
-              <div className="text-[11px] text-muted-foreground bg-muted/50 p-3 rounded-xl flex items-center justify-between font-mono animate-in fade-in">
+              <div className="text-[11px] text-muted-foreground bg-muted/50 p-2.5 rounded-xl flex items-center justify-between font-mono animate-in fade-in">
                 <span>Transparansi: {options.watermark.preset.settings.opacityPct}%</span>
-                <span>Ukuran: {options.watermark.preset.settings.scalePct}%</span>
-                <span className="capitalize font-sans">
+                <span>Skala: {options.watermark.preset.settings.scalePct}%</span>
+                <span className="capitalize font-sans font-medium text-foreground">
                   {options.watermark.preset.settings.position.replace("-", " ")}
                 </span>
               </div>
@@ -315,7 +395,7 @@ export default function EditPage() {
           </div>
 
           {/* Operation 3: Resize & Compress Preset */}
-          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 sm:p-5 flex flex-col gap-3.5 shadow-sm hover:border-primary/40 transition-colors">
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3.5 shadow-sm hover:border-primary/40 transition-colors">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
                 <ArrowsPointingOutIcon className="w-4 h-4" />
@@ -330,30 +410,36 @@ export default function EditPage() {
               </div>
             </div>
 
-            {/* Preset Selector Grid */}
+            {/* Preset Selector Grid - Responsive Cards without truncation */}
             <div className="grid grid-cols-2 gap-2">
-              {Object.entries(RESIZE_PRESETS).map(([key, config]) => {
+              {(Object.keys(RESIZE_PRESETS) as ResizePresetId[]).map((key) => {
                 const isSelected = options.resize.presetId === key;
+                const info = PRESET_DISPLAY_DATA[key] || {
+                  name: key,
+                  tag: "Kustom",
+                };
                 return (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => handleResizePresetChange(key as ResizePresetId)}
-                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all duration-200 active:scale-95 ${
+                    onClick={() => handleResizePresetChange(key)}
+                    className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 transition-all duration-200 active:scale-95 ${
                       isSelected
                         ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
                         : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border-border/60"
                     }`}
                   >
-                    <span className="text-xs font-bold leading-tight truncate">
-                      {config.label}
+                    <span className="text-xs font-bold leading-tight">
+                      {info.name}
                     </span>
                     <span
-                      className={`text-[10px] font-mono ${
-                        isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                      className={`text-[10px] font-mono leading-tight ${
+                        isSelected
+                          ? "text-primary-foreground/85"
+                          : "text-muted-foreground"
                       }`}
                     >
-                      {config.width && config.height ? `${config.width}x${config.height}` : config.maxDimension ? `Max ${config.maxDimension}px` : "Asli"}
+                      {info.tag}
                     </span>
                   </button>
                 );
@@ -362,16 +448,13 @@ export default function EditPage() {
 
             {/* Fit Mode Selector (Cover vs Contain) */}
             <div className="flex flex-col gap-1.5 pt-2 border-t border-border/50">
-              <span className="text-xs font-semibold text-foreground">Metode Penyesuaian Rasio</span>
+              <span className="text-xs font-semibold text-foreground">
+                Metode Penyesuaian Rasio
+              </span>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() =>
-                    setOptions((prev) => ({
-                      ...prev,
-                      resize: { ...prev.resize, fitMode: "cover" },
-                    }))
-                  }
+                  onClick={() => handleFitModeChange("cover")}
                   className={`py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
                     options.resize.fitMode === "cover"
                       ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
@@ -382,12 +465,7 @@ export default function EditPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() =>
-                    setOptions((prev) => ({
-                      ...prev,
-                      resize: { ...prev.resize, fitMode: "contain" },
-                    }))
-                  }
+                  onClick={() => handleFitModeChange("contain")}
                   className={`py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
                     options.resize.fitMode === "contain"
                       ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
@@ -401,7 +479,9 @@ export default function EditPage() {
 
             {/* Format Selector (JPEG, WebP, PNG) */}
             <div className="flex flex-col gap-1.5 pt-2 border-t border-border/50">
-              <span className="text-xs font-semibold text-foreground">Format File Output</span>
+              <span className="text-xs font-semibold text-foreground">
+                Format File Output
+              </span>
               <div className="grid grid-cols-3 gap-2">
                 {(
                   [
@@ -415,12 +495,7 @@ export default function EditPage() {
                     <button
                       key={fmt.id}
                       type="button"
-                      onClick={() =>
-                        setOptions((prev) => ({
-                          ...prev,
-                          resize: { ...prev.resize, format: fmt.id },
-                        }))
-                      }
+                      onClick={() => handleFormatChange(fmt.id)}
                       className={`py-2 px-2 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
                         isChosen
                           ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
@@ -434,18 +509,21 @@ export default function EditPage() {
               </div>
             </div>
 
-            {/* Quality Compression (Lossy for JPG/WebP, Lossless for PNG) */}
+            {/* Quality Compression */}
             <div className="flex flex-col gap-2 pt-2 border-t border-border/50">
               {options.resize.format === "image/png" ? (
                 <div className="p-2.5 rounded-xl bg-muted/60 border border-border/50 text-[11px] text-muted-foreground leading-relaxed">
-                  <span className="font-semibold text-foreground block mb-0.5">PNG Lossless</span>
-                  Format PNG dikompresi tanpa penurunan kualitas piksel foto asli.
+                  <span className="font-semibold text-foreground block mb-0.5">
+                    PNG Lossless
+                  </span>
+                  Format PNG dikompresi murni tanpa penurunan kualitas piksel foto asli.
                 </div>
               ) : (
                 <>
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-foreground">
-                      Kualitas Kompresi ({options.resize.format === "image/webp" ? "WebP" : "JPG"})
+                      Kualitas Kompresi (
+                      {options.resize.format === "image/webp" ? "WebP" : "JPG"})
                     </span>
                     <span className="font-mono text-muted-foreground">
                       {Math.round(options.resize.quality * 100)}%
@@ -458,13 +536,7 @@ export default function EditPage() {
                     step="0.05"
                     value={options.resize.quality}
                     onChange={(e) =>
-                      setOptions((prev) => ({
-                        ...prev,
-                        resize: {
-                          ...prev.resize,
-                          quality: parseFloat(e.target.value),
-                        },
-                      }))
+                      handleQualityChange(parseFloat(e.target.value))
                     }
                     className="w-full accent-primary mt-1"
                   />
@@ -474,7 +546,7 @@ export default function EditPage() {
           </div>
 
           {/* Operation 4: Non-Destructive Auto-Color Preview */}
-          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 sm:p-5 flex flex-col gap-3.5 shadow-sm hover:border-primary/40 transition-colors">
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3.5 shadow-sm hover:border-primary/40 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
@@ -535,43 +607,47 @@ export default function EditPage() {
         {/* ----------------------------------------------------------- */}
         <div className="flex-1 flex flex-col bg-background/50 overflow-hidden">
           {/* Main Inspection Canvas Viewport */}
-          <div className="flex-1 p-6 sm:p-8 flex items-center justify-center relative overflow-hidden">
+          <div className="flex-1 p-4 sm:p-8 flex items-center justify-center relative overflow-hidden">
             {activeJob ? (
-              <div className="w-full h-full max-h-[68vh] flex items-center justify-center relative">
+              <div className="w-full h-full max-h-[68vh] flex items-center justify-center relative group">
                 {options.colorAdjustment?.enabled ? (
                   // Before / After Split Slider
                   <SplitComparisonSlider
                     originalSrc={activeJob.objectUrl}
                     adjustedSrc={activeJob.resultBlobUrl || activeJob.objectUrl}
-                    className="max-w-full max-h-full shadow-2xl rounded-2xl overflow-hidden border border-black/10 dark:border-white/10"
+                    className="max-w-full max-h-full"
                     alt={activeJob.originalFilename}
+                    onImageClick={() => setLightboxOpen(true)}
                   />
                 ) : (
                   // Standard Preview Viewport
-                  <div className="relative max-w-full max-h-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/10 flex items-center justify-center">
+                  <div
+                    onClick={() => setLightboxOpen(true)}
+                    className="relative max-w-full max-h-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/10 flex items-center justify-center cursor-zoom-in"
+                  >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={activeJob.resultBlobUrl || activeJob.objectUrl}
                       alt={activeJob.originalFilename}
-                      className="max-w-full max-h-[64vh] object-contain block rounded-2xl transition-all duration-300"
+                      className="max-w-full max-h-[64vh] object-contain block rounded-2xl transition-all duration-300 group-hover:scale-[1.01]"
                     />
 
-                    {activeJob.state === "done" && (
-                      <div className="absolute bottom-4 right-4 px-3.5 py-1.5 bg-black/75 backdrop-blur-md rounded-full text-white text-xs flex items-center gap-2 shadow-lg animate-fade-in">
-                        <CheckCircleIcon className="w-4 h-4 text-emerald-400" />
-                        <span className="font-medium">Selesai Diproses</span>
-                      </div>
-                    )}
+                    {/* Subtle Magnify Hint on Hover */}
+                    <div className="absolute top-4 right-4 p-2 rounded-full bg-black/60 backdrop-blur-md text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+                      <MagnifyingGlassPlusIcon className="w-4 h-4" />
+                    </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="text-xs text-muted-foreground">Pilih foto dari daftar di bawah</div>
+              <div className="text-xs text-muted-foreground">
+                Pilih foto dari daftar di bawah
+              </div>
             )}
           </div>
 
           {/* Bottom Filmstrip Carousel */}
-          <div className="h-28 border-t border-border/50 bg-card/80 backdrop-blur-md px-6 py-3 flex items-center gap-3.5 overflow-x-auto shrink-0">
+          <div className="h-28 border-t border-border/50 bg-card/80 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center gap-3.5 overflow-x-auto shrink-0">
             {jobs.map((job, idx) => {
               const isSelected = job.id === activeJob?.id;
               return (
@@ -605,10 +681,14 @@ export default function EditPage() {
           </div>
 
           {/* Action Bar Footer */}
-          <div className="h-16 border-t border-border/50 bg-card/90 backdrop-blur-md px-6 flex items-center justify-between gap-4 shrink-0">
+          <div className="h-16 border-t border-border/50 bg-card/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted-foreground">
-                Progres Batch: <span className="font-semibold text-foreground">{summary.done}</span> dari {summary.total} foto selesai
+                Progres Batch:{" "}
+                <span className="font-semibold text-foreground">
+                  {summary.done}
+                </span>{" "}
+                dari {summary.total} foto selesai
               </span>
               {summary.isProcessing && (
                 <div className="flex items-center gap-1.5 text-xs text-accent font-semibold">
@@ -640,6 +720,61 @@ export default function EditPage() {
           </div>
         </div>
       </div>
+
+      {/* Full-Screen High-Resolution Lightbox Modal */}
+      {lightboxOpen && activeJob && (
+        <div
+          onClick={() => setLightboxOpen(false)}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-between p-4 sm:p-6 animate-fade-in"
+        >
+          {/* Top Bar Header */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-6xl flex items-center justify-between text-white"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold truncate">
+                {activeJob.originalFilename}
+              </span>
+              {activeJob.originalDimensions && (
+                <span className="text-xs text-white/60 font-mono">
+                  ({activeJob.originalDimensions.width} ×{" "}
+                  {activeJob.originalDimensions.height} px)
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(false)}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all active:scale-90"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Main Zoomable Photo Canvas */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 w-full max-w-6xl flex items-center justify-center p-2 sm:p-4 overflow-hidden"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={activeJob.resultBlobUrl || activeJob.objectUrl}
+              alt={activeJob.originalFilename}
+              className="max-w-full max-h-[82vh] object-contain rounded-xl shadow-2xl"
+            />
+          </div>
+
+          {/* Bottom Caption */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-white/60 font-medium"
+          >
+            Klik di luar foto atau tekan <kbd className="px-1.5 py-0.5 rounded bg-white/20 text-white font-mono text-[10px]">Esc</kbd> untuk menutup pratinjau
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
 import ExclamationCircleIcon from "@heroicons/react/24/outline/ExclamationCircleIcon";
 import ArrowLeftIcon from "@heroicons/react/24/outline/ArrowLeftIcon";
 import ArrowPathIcon from "@heroicons/react/24/outline/ArrowPathIcon";
+import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 
 import { getQueueManager } from "@/lib/queue/manager";
 import { QueueJob, QueueSummary } from "@/lib/queue/types";
@@ -39,6 +40,7 @@ export default function ExportPage() {
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [syncStatusMessage, setSyncStatusMessage] = useState<string | null>(null);
   const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
+  const [previewJob, setPreviewJob] = useState<QueueJob | null>(null);
 
   useEffect(() => {
     const queue = getQueueManager();
@@ -351,18 +353,21 @@ export default function ExportPage() {
                 key={job.id}
                 className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm p-4 flex items-center justify-between gap-4 shadow-sm hover:border-primary/40 transition-all hover:scale-[1.01]"
               >
-                <div className="flex items-center gap-3.5 overflow-hidden">
-                  <div className="w-14 h-14 rounded-xl bg-muted border border-border/60 overflow-hidden shrink-0 shadow-inner">
+                <div
+                  onClick={() => setPreviewJob(job)}
+                  className="flex items-center gap-3.5 overflow-hidden cursor-pointer flex-1"
+                >
+                  <div className="w-14 h-14 rounded-xl bg-muted border border-border/60 overflow-hidden shrink-0 shadow-inner group relative">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={job.thumbnailUrl || job.objectUrl}
                       alt={job.originalFilename}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     />
                   </div>
                   <div className="flex flex-col gap-0.5 overflow-hidden">
                     <span
-                      className="text-xs font-bold truncate text-foreground"
+                      className="text-xs font-bold truncate text-foreground hover:text-primary transition-colors"
                       title={job.originalFilename}
                     >
                       {job.originalFilename}
@@ -404,6 +409,70 @@ export default function ExportPage() {
           })}
         </div>
       </div>
+
+      {/* Lightbox Modal in Export View */}
+      {previewJob && (
+        <div
+          onClick={() => setPreviewJob(null)}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-between p-4 sm:p-6 animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-5xl flex items-center justify-between text-white"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold truncate">
+                {previewJob.originalFilename}
+              </span>
+              {previewJob.result && (
+                <span className="text-xs text-white/60 font-mono">
+                  ({previewJob.result.width} × {previewJob.result.height} px •{" "}
+                  {formatFileSize(previewJob.result.byteSize)})
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {previewJob.result && (
+                <button
+                  type="button"
+                  onClick={() => handleDownloadSingle(previewJob)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all active:scale-95 shadow-sm"
+                >
+                  <ArrowDownTrayIcon className="w-4 h-4" />
+                  <span>Download</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setPreviewJob(null)}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all active:scale-90"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 w-full max-w-5xl flex items-center justify-center p-2 sm:p-4 overflow-hidden"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewJob.resultBlobUrl || previewJob.objectUrl}
+              alt={previewJob.originalFilename}
+              className="max-w-full max-h-[82vh] object-contain rounded-xl shadow-2xl"
+            />
+          </div>
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-white/60 font-medium"
+          >
+            Klik di luar foto atau tombol silang untuk menutup
+          </div>
+        </div>
+      )}
     </div>
   );
 }

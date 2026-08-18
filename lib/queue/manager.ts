@@ -314,6 +314,38 @@ export class ProcessingQueueManager {
   }
 
   private async loadLogoBitmap(logoUrl: string): Promise<ImageBitmap> {
+    if (typeof Image !== "undefined") {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = async () => {
+          if (typeof createImageBitmap !== "undefined") {
+            try {
+              const bmp = await createImageBitmap(img);
+              return resolve(bmp);
+            } catch {
+              // fallback to Image instance
+            }
+          }
+          resolve(img as unknown as ImageBitmap);
+        };
+        img.onerror = () => {
+          fetch(logoUrl)
+            .then((res) => res.blob())
+            .then(async (blob) => {
+              if (typeof createImageBitmap !== "undefined") {
+                const bmp = await createImageBitmap(blob);
+                resolve(bmp);
+              } else {
+                reject(new Error("Failed to load watermark logo"));
+              }
+            })
+            .catch((err) => reject(err));
+        };
+        img.src = logoUrl;
+      });
+    }
+
     const res = await fetch(logoUrl);
     if (!res.ok) {
       throw new Error(`Failed to fetch logo: HTTP ${res.status}`);
@@ -322,19 +354,7 @@ export class ProcessingQueueManager {
     if (typeof createImageBitmap !== "undefined") {
       return await createImageBitmap(blob);
     }
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(blob);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        resolve(img as unknown as ImageBitmap);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("Failed to decode logo image"));
-      };
-      img.src = url;
-    });
+    throw new Error("Logo decode not supported in this environment");
   }
 
   public removeJob(id: string): void {
