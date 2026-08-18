@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import JSZip from "jszip";
@@ -12,6 +13,8 @@ import ExclamationCircleIcon from "@heroicons/react/24/outline/ExclamationCircle
 import ArrowLeftIcon from "@heroicons/react/24/outline/ArrowLeftIcon";
 import ArrowPathIcon from "@heroicons/react/24/outline/ArrowPathIcon";
 import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
+import DocumentDuplicateIcon from "@heroicons/react/24/outline/DocumentDuplicateIcon";
+import CheckIcon from "@heroicons/react/24/outline/CheckIcon";
 
 import { getQueueManager } from "@/lib/queue/manager";
 import { QueueJob, QueueSummary } from "@/lib/queue/types";
@@ -19,6 +22,7 @@ import {
   getSignedUploadParams,
   saveBatchHistory,
 } from "@/lib/api/client";
+import { copyImageToClipboard } from "@/lib/processing/clipboard";
 
 export default function ExportPage() {
   const router = useRouter();
@@ -41,6 +45,12 @@ export default function ExportPage() {
   const [syncStatusMessage, setSyncStatusMessage] = useState<string | null>(null);
   const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
   const [previewJob, setPreviewJob] = useState<QueueJob | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const queue = getQueueManager();
@@ -61,6 +71,20 @@ export default function ExportPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [previewJob]);
+
+  const handleCopyPreviewImage = async (job: QueueJob) => {
+    let source: Blob | string | undefined = job.result?.blob;
+    if (!source) {
+      source = job.resultBlobUrl || job.objectUrl || job.thumbnailUrl;
+    }
+    if (!source) return;
+
+    const ok = await copyImageToClipboard(source);
+    if (ok) {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2200);
+    }
+  };
 
   const completedJobs = jobs.filter((j) => j.state === "done" && j.result);
 
@@ -455,83 +479,111 @@ export default function ExportPage() {
         </div>
       </div>
 
-      {/* Lightbox Modal in Export View */}
-      {previewJob && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Pratinjau ${previewJob.originalFilename}`}
-          onClick={() => setPreviewJob(null)}
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-6 overflow-y-auto animate-fade-in"
-        >
-          {/* Top Bar Header */}
+      {/* Lightbox Modal in Export View - Portaled directly to document.body */}
+      {mounted &&
+        previewJob &&
+        createPortal(
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-5xl mx-auto flex items-center justify-between text-white shrink-0 mb-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Pratinjau ${previewJob.originalFilename}`}
+            onClick={() => setPreviewJob(null)}
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-6 overflow-y-auto animate-fade-in"
           >
-            <div className="flex items-center gap-3 overflow-hidden">
-              <span className="text-sm font-semibold truncate max-w-[220px] sm:max-w-md">
-                {previewJob.originalFilename}
-              </span>
-              {previewJob.result && (
-                <span className="text-xs text-white/70 font-mono shrink-0">
-                  ({previewJob.result.width} × {previewJob.result.height} px •{" "}
-                  {formatFileSize(previewJob.result.byteSize)})
+            {/* Top Bar Header */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-5xl mx-auto flex items-center justify-between text-white shrink-0 mb-3"
+            >
+              <div className="flex items-center gap-3 overflow-hidden">
+                <span className="text-sm font-semibold truncate max-w-[180px] sm:max-w-md">
+                  {previewJob.originalFilename}
                 </span>
-              )}
-            </div>
+                {previewJob.result && (
+                  <span className="text-xs text-white/70 font-mono shrink-0">
+                    ({previewJob.result.width} × {previewJob.result.height} px •{" "}
+                    {formatFileSize(previewJob.result.byteSize)})
+                  </span>
+                )}
+              </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              {previewJob.result && (
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Copy Image Button */}
                 <button
                   type="button"
-                  onClick={() => handleDownloadSingle(previewJob)}
-                  className="min-h-[44px] flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all active:scale-95 shadow-sm"
+                  onClick={() => handleCopyPreviewImage(previewJob)}
+                  className={`min-h-[40px] flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 shadow-sm ${
+                    isCopied
+                      ? "bg-emerald-600 text-white shadow-emerald-900/50"
+                      : "bg-white/15 hover:bg-white/25 text-white border border-white/10"
+                  }`}
+                  title="Salin Gambar ke Clipboard"
                 >
-                  <ArrowDownTrayIcon className="w-4 h-4" />
-                  <span>Download</span>
+                  {isCopied ? (
+                    <>
+                      <CheckIcon className="w-4 h-4 text-white" />
+                      <span>Tersalin!</span>
+                    </>
+                  ) : (
+                    <>
+                      <DocumentDuplicateIcon className="w-4 h-4" />
+                      <span>Salin Gambar</span>
+                    </>
+                  )}
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setPreviewJob(null)}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-all active:scale-90"
-                aria-label="Tutup Pratinjau"
-              >
-                <XMarkIcon className="w-5 h-5" />
-              </button>
+
+                {previewJob.result && (
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadSingle(previewJob)}
+                    className="min-h-[40px] flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all active:scale-95 shadow-sm"
+                  >
+                    <ArrowDownTrayIcon className="w-4 h-4" />
+                    <span>Download</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewJob(null)}
+                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-all active:scale-90"
+                  aria-label="Tutup Pratinjau"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* Main Photo Preview */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center p-2 sm:p-4 min-h-0 my-auto"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={
-                previewJob.resultBlobUrl ||
-                (previewJob.result?.blob
-                  ? URL.createObjectURL(previewJob.result.blob)
-                  : undefined) ||
-                previewJob.objectUrl ||
-                previewJob.thumbnailUrl
-              }
-              alt={previewJob.originalFilename}
-              className="max-w-full max-h-[75vh] object-contain rounded-xl shadow-2xl"
-            />
-          </div>
+            {/* Main Photo Preview (Supports touch-and-hold & right click) */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center p-2 sm:p-4 min-h-0 my-auto"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={
+                  previewJob.resultBlobUrl ||
+                  (previewJob.result?.blob
+                    ? URL.createObjectURL(previewJob.result.blob)
+                    : undefined) ||
+                  previewJob.objectUrl ||
+                  previewJob.thumbnailUrl
+                }
+                alt={previewJob.originalFilename}
+                className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl select-auto pointer-events-auto cursor-grab active:cursor-grabbing"
+              />
+            </div>
 
-          {/* Bottom Caption */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="text-xs text-white/70 font-medium text-center shrink-0 mt-4 mx-auto"
-          >
-            Klik di luar foto atau tekan [ESC] untuk menutup
-          </div>
-        </div>
-      )}
+            {/* Bottom Caption */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-white/70 font-medium text-center shrink-0 mt-3 mx-auto flex items-center justify-center gap-2"
+            >
+              <span>💡 Tahan foto untuk simpan di HP • Tekan [ESC] atau klik di luar untuk menutup</span>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

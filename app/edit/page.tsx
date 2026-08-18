@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import ShieldCheckIcon from "@heroicons/react/24/outline/ShieldCheckIcon";
@@ -18,6 +19,9 @@ import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import ArrowUturnLeftIcon from "@heroicons/react/24/outline/ArrowUturnLeftIcon";
 import ArrowUturnRightIcon from "@heroicons/react/24/outline/ArrowUturnRightIcon";
 import PlusIcon from "@heroicons/react/24/outline/PlusIcon";
+import DocumentDuplicateIcon from "@heroicons/react/24/outline/DocumentDuplicateIcon";
+import CheckIcon from "@heroicons/react/24/outline/CheckIcon";
+import { copyImageToClipboard } from "@/lib/processing/clipboard";
 
 import { getQueueManager } from "@/lib/queue/manager";
 import { QueueJob, QueueSummary } from "@/lib/queue/types";
@@ -78,6 +82,26 @@ function EditPageContent() {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleCopyPreviewImage = async (job: QueueJob) => {
+    let source: Blob | string | undefined = job.result?.blob;
+    if (!source) {
+      source = job.resultBlobUrl || job.objectUrl || job.thumbnailUrl;
+    }
+    if (!source) return;
+
+    const ok = await copyImageToClipboard(source);
+    if (ok) {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2200);
+    }
+  };
 
   // Editor Operations State
   const [options, setOptions] = useState<ProcessingPipelineOptions>({
@@ -951,74 +975,104 @@ function EditPageContent() {
       {/* ----------------------------------------------------------- */}
       {/* FULL-SCREEN HIGH-RESOLUTION LIGHTBOX MODAL (z-[100]) */}
       {/* ----------------------------------------------------------- */}
-      {lightboxOpen && activeJob && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Pratinjau ${activeJob.originalFilename}`}
-          onClick={() => setLightboxOpen(false)}
-          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-6 overflow-y-auto animate-fade-in"
-        >
-          {/* Top Bar Header */}
+      {mounted &&
+        lightboxOpen &&
+        activeJob &&
+        createPortal(
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-6xl mx-auto flex items-center justify-between text-white shrink-0 mb-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Pratinjau ${activeJob.originalFilename}`}
+            onClick={() => setLightboxOpen(false)}
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-6 overflow-y-auto animate-fade-in"
           >
-            <div className="flex items-center gap-2 overflow-hidden">
-              <span className="text-xs sm:text-sm font-semibold truncate max-w-[200px] sm:max-w-md">
-                {activeJob.originalFilename}
-              </span>
-              {activeJob.result ? (
-                <span className="text-[10px] sm:text-xs text-white/70 font-mono shrink-0">
-                  ({activeJob.result.width} × {activeJob.result.height} px)
+            {/* Top Bar Header */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-6xl mx-auto flex items-center justify-between text-white shrink-0 mb-3"
+            >
+              <div className="flex items-center gap-2 overflow-hidden">
+                <span className="text-xs sm:text-sm font-semibold truncate max-w-[180px] sm:max-w-md">
+                  {activeJob.originalFilename}
                 </span>
-              ) : activeJob.originalDimensions ? (
-                <span className="text-[10px] sm:text-xs text-white/70 font-mono shrink-0">
-                  ({activeJob.originalDimensions.width} ×{" "}
-                  {activeJob.originalDimensions.height} px)
-                </span>
-              ) : null}
+                {activeJob.result ? (
+                  <span className="text-[10px] sm:text-xs text-white/70 font-mono shrink-0">
+                    ({activeJob.result.width} × {activeJob.result.height} px)
+                  </span>
+                ) : activeJob.originalDimensions ? (
+                  <span className="text-[10px] sm:text-xs text-white/70 font-mono shrink-0">
+                    ({activeJob.originalDimensions.width} ×{" "}
+                    {activeJob.originalDimensions.height} px)
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Copy Image Button */}
+                <button
+                  type="button"
+                  onClick={() => handleCopyPreviewImage(activeJob)}
+                  className={`min-h-[40px] flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 shadow-sm ${
+                    isCopied
+                      ? "bg-emerald-600 text-white shadow-emerald-900/50"
+                      : "bg-white/15 hover:bg-white/25 text-white border border-white/10"
+                  }`}
+                  title="Salin Gambar ke Clipboard"
+                >
+                  {isCopied ? (
+                    <>
+                      <CheckIcon className="w-4 h-4 text-white" />
+                      <span>Tersalin!</span>
+                    </>
+                  ) : (
+                    <>
+                      <DocumentDuplicateIcon className="w-4 h-4" />
+                      <span>Salin Gambar</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(false)}
+                  className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-all active:scale-90"
+                  aria-label="Tutup Pratinjau"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setLightboxOpen(false)}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-all active:scale-90"
-              aria-label="Tutup Pratinjau"
+            {/* Main Zoomable Photo Canvas (Supports touch-and-hold & right click) */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 w-full max-w-6xl mx-auto flex items-center justify-center p-2 sm:p-4 min-h-0 my-auto"
             >
-              <XMarkIcon className="w-5 h-5" />
-            </button>
-          </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={
+                  activeJob.resultBlobUrl ||
+                  (activeJob.result?.blob
+                    ? URL.createObjectURL(activeJob.result.blob)
+                    : undefined) ||
+                  activeJob.objectUrl ||
+                  activeJob.thumbnailUrl
+                }
+                alt={activeJob.originalFilename}
+                className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl select-auto pointer-events-auto cursor-grab active:cursor-grabbing"
+              />
+            </div>
 
-          {/* Main Zoomable Photo Canvas */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 w-full max-w-6xl mx-auto flex items-center justify-center p-2 sm:p-4 min-h-0 my-auto"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={
-                activeJob.resultBlobUrl ||
-                (activeJob.result?.blob
-                  ? URL.createObjectURL(activeJob.result.blob)
-                  : undefined) ||
-                activeJob.objectUrl ||
-                activeJob.thumbnailUrl
-              }
-              alt={activeJob.originalFilename}
-              className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl"
-            />
-          </div>
-
-          {/* Bottom Caption */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="text-[11px] sm:text-xs text-white/70 font-medium text-center shrink-0 mt-4 mx-auto"
-          >
-            Ketuk di luar foto atau tekan [ESC] untuk menutup
-          </div>
-        </div>
-      )}
+            {/* Bottom Caption */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="text-[11px] sm:text-xs text-white/70 font-medium text-center shrink-0 mt-3 mx-auto flex items-center justify-center gap-2"
+            >
+              <span>💡 Tahan foto untuk simpan di HP • Tekan [ESC] atau [F] untuk menutup</span>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
