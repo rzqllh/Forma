@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import ShieldCheckIcon from "@heroicons/react/24/outline/ShieldCheckIcon";
 import BookmarkIcon from "@heroicons/react/24/outline/BookmarkIcon";
 import ArrowsPointingOutIcon from "@heroicons/react/24/outline/ArrowsPointingOutIcon";
@@ -15,6 +15,9 @@ import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
 import PhotoIcon from "@heroicons/react/24/outline/PhotoIcon";
 import MagnifyingGlassPlusIcon from "@heroicons/react/24/outline/MagnifyingGlassPlusIcon";
 import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
+import ArrowUturnLeftIcon from "@heroicons/react/24/outline/ArrowUturnLeftIcon";
+import ArrowUturnRightIcon from "@heroicons/react/24/outline/ArrowUturnRightIcon";
+import PlusIcon from "@heroicons/react/24/outline/PlusIcon";
 
 import { getQueueManager } from "@/lib/queue/manager";
 import { QueueJob, QueueSummary } from "@/lib/queue/types";
@@ -27,6 +30,7 @@ import { RESIZE_PRESETS } from "@/lib/processing/resize";
 import { fetchPresets } from "@/lib/api/client";
 import { Preset } from "@/db/schema";
 import { SplitComparisonSlider } from "@/components/SplitComparisonSlider";
+import { CustomSelect } from "@/components/CustomSelect";
 
 const PRESET_DISPLAY_DATA: Record<
   ResizePresetId,
@@ -42,7 +46,23 @@ const PRESET_DISPLAY_DATA: Record<
 };
 
 export default function EditPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+          <ArrowPathIcon className="w-4 h-4 animate-spin text-primary" />
+          <span>Memuat Studio Editor...</span>
+        </div>
+      }
+    >
+      <EditPageContent />
+    </Suspense>
+  );
+}
+
+function EditPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<QueueJob[]>([]);
   const [summary, setSummary] = useState<QueueSummary>({
     total: 0,
@@ -75,8 +95,71 @@ export default function EditPage() {
     },
   });
 
+  // Bounded History Stack for Undo/Redo (Max 25 states)
+  const [history, setHistory] = useState<ProcessingPipelineOptions[]>([options]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  const pushHistory = useCallback(
+    (newOpts: ProcessingPipelineOptions) => {
+      setHistory((prev) => {
+        const next = [...prev.slice(0, historyIndex + 1), newOpts];
+        if (next.length > 25) next.shift();
+        return next;
+      });
+      setHistoryIndex((prev) => Math.min(prev + 1, 24));
+    },
+    [historyIndex]
+  );
+
+  const activeJob = useMemo(() => {
+    return jobs.find((j) => j.id === activeJobId) || jobs[0] || null;
+  }, [jobs, activeJobId]);
+
+  // Live Auto-reprocess active job when options change
+  const applyOptionsToActive = useCallback(
+    (newOptions: ProcessingPipelineOptions, skipHistory = false) => {
+      setOptions(newOptions);
+      if (!skipHistory) {
+        pushHistory(newOptions);
+      }
+      if (activeJob) {
+        const queue = getQueueManager();
+        queue.updateJobOptions(activeJob.id, newOptions);
+        queue.startBatch();
+      }
+    },
+    [activeJob, pushHistory]
+  );
+
+  // Undo / Redo Handlers
+  const handleUndo = useCallback(() => {
+    if (historyIndex > 0) {
+      const prevOpts = history[historyIndex - 1];
+      setHistoryIndex(historyIndex - 1);
+      applyOptionsToActive(prevOpts, true);
+    }
+  }, [historyIndex, history, applyOptionsToActive]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const nextOpts = history[historyIndex + 1];
+      setHistoryIndex(historyIndex + 1);
+      applyOptionsToActive(nextOpts, true);
+    }
+  }, [historyIndex, history, applyOptionsToActive]);
+
+  // Initial mount & session restoration from IndexedDB
   useEffect(() => {
     const queue = getQueueManager();
+
+    // Auto-restore session from IndexedDB if in-memory queue is empty on refresh
+    queue.restoreSavedSession().then(() => {
+      const currentJobs = queue.getJobs();
+      if (currentJobs.length > 0 && !activeJobId) {
+        setActiveJobId(currentJobs[0].id);
+      }
+    });
+
     const unsub = queue.subscribe((currentJobs, currentSummary) => {
       setJobs(currentJobs);
       setSummary(currentSummary);
@@ -87,28 +170,20 @@ export default function EditPage() {
     });
 
     fetchPresets()
-      .then((list) => setPresets(list))
+      .then((list) => {
+        setPresets(list);
+        const presetParam = searchParams?.get("selectedPresetId");
+        if (presetParam) {
+          const match = list.find((p) => p.id === presetParam);
+          if (match) {
+            handleSelectPreset(presetParam, list);
+          }
+        }
+      })
       .catch((err) => console.warn("Gagal memuat preset:", err));
 
     return unsub;
-  }, [activeJobId]);
-
-  const activeJob = useMemo(() => {
-    return jobs.find((j) => j.id === activeJobId) || jobs[0] || null;
-  }, [jobs, activeJobId]);
-
-  // Live Auto-reprocess active job when options change
-  const applyOptionsToActive = useCallback(
-    (newOptions: ProcessingPipelineOptions) => {
-      setOptions(newOptions);
-      if (activeJob) {
-        const queue = getQueueManager();
-        queue.updateJobOptions(activeJob.id, newOptions);
-        queue.startBatch();
-      }
-    },
-    [activeJob]
-  );
+  }, [activeJobId, searchParams]);
 
   const handleSelectJob = (job: QueueJob) => {
     setActiveJobId(job.id);
@@ -122,14 +197,17 @@ export default function EditPage() {
     applyOptionsToActive(newOpts);
   };
 
-  const handleSelectPreset = (presetId: string) => {
+  const handleSelectPreset = (presetId: string, customList?: Preset[]) => {
     setSelectedPresetId(presetId);
+    const presetList = customList || presets;
+
     if (!presetId) {
       const newOpts = { ...options, watermark: undefined };
       applyOptionsToActive(newOpts);
       return;
     }
-    const preset = presets.find((p) => p.id === presetId);
+
+    const preset = presetList.find((p) => p.id === presetId);
     if (preset) {
       const newOpts = {
         ...options,
@@ -230,16 +308,60 @@ export default function EditPage() {
     queue.startBatch();
   };
 
-  // Keyboard shortcut for lightbox (Esc to close)
+  // Keyboard Shortcuts: Pro Workflow
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && lightboxOpen) {
+      // Ignore if user is currently typing in input/textarea
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+
+      // Undo: Ctrl+Z / Cmd+Z
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        (e.key === "z" || e.key === "Z")
+      ) {
+        e.preventDefault();
+        handleUndo();
+      }
+      // Redo: Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y
+      else if (
+        ((e.ctrlKey || e.metaKey) &&
+          e.shiftKey &&
+          (e.key === "z" || e.key === "Z")) ||
+        ((e.ctrlKey || e.metaKey) && (e.key === "y" || e.key === "Y"))
+      ) {
+        e.preventDefault();
+        handleRedo();
+      }
+      // Fullscreen Zoom: F
+      else if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        setLightboxOpen((prev) => !prev);
+      }
+      // Esc: Close Lightbox
+      else if (e.key === "Escape" && lightboxOpen) {
+        e.preventDefault();
         setLightboxOpen(false);
       }
+      // Filmstrip 1-9: Select photo index
+      else if (/^[1-9]$/.test(e.key)) {
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx < jobs.length) {
+          e.preventDefault();
+          setActiveJobId(jobs[idx].id);
+        }
+      }
     };
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lightboxOpen]);
+  }, [handleUndo, handleRedo, jobs, lightboxOpen]);
 
   if (jobs.length === 0) {
     return (
@@ -266,7 +388,7 @@ export default function EditPage() {
   return (
     <div className="flex flex-col min-h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-3.5rem)] lg:overflow-hidden pb-24 lg:pb-0 animate-fade-in">
       {/* ----------------------------------------------------------- */}
-      {/* TOP SUB-HEADER BAR (COMPACT & TOUCH-FRIENDLY) */}
+      {/* TOP SUB-HEADER BAR (WITH UNDO / REDO & ACTIONS) */}
       {/* ----------------------------------------------------------- */}
       <div className="h-14 border-b border-border/50 bg-card/70 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
         <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
@@ -285,6 +407,28 @@ export default function EditPage() {
             <span className="text-[10px] text-muted-foreground font-mono shrink-0">
               ({jobs.length} foto)
             </span>
+          </div>
+
+          {/* Undo / Redo Toolbar Controls */}
+          <div className="hidden sm:flex items-center gap-1 ml-2 pl-2 border-l border-border/60">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={historyIndex === 0}
+              title="Undo Perubahan (Ctrl+Z)"
+              className="p-1.5 rounded-lg border border-border/50 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-90"
+            >
+              <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleRedo}
+              disabled={historyIndex >= history.length - 1}
+              title="Redo Perubahan (Ctrl+Y)"
+              className="p-1.5 rounded-lg border border-border/50 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-90"
+            >
+              <ArrowUturnRightIcon className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
@@ -335,10 +479,11 @@ export default function EditPage() {
                   type="button"
                   onClick={() => setLightboxOpen(true)}
                   className="min-h-[40px] min-w-[40px] absolute top-3 right-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 backdrop-blur-md text-white text-xs font-semibold shadow-xl transition-all active:scale-95 border border-white/10"
-                  title="Lihat Pratinjau Foto Penuh"
+                  title="Lihat Pratinjau Foto Penuh (F)"
                 >
                   <MagnifyingGlassPlusIcon className="w-4 h-4 text-primary-foreground" />
                   <span className="hidden xs:inline">Zoom Penuh</span>
+                  <span className="text-[10px] opacity-70 font-mono hidden md:inline">[F]</span>
                 </button>
 
                 {options.colorAdjustment?.enabled ? (
@@ -446,7 +591,7 @@ export default function EditPage() {
             </p>
           </div>
 
-          {/* Operation 2: Watermark Preset Selection */}
+          {/* Operation 2: Watermark Preset Selection with Themed CustomSelect */}
           <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3 shadow-sm hover:border-primary/40 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -463,26 +608,43 @@ export default function EditPage() {
                 </div>
               </div>
 
-              <Link
-                href="/presets"
-                className="min-h-[44px] inline-flex items-center text-xs font-semibold text-primary hover:underline px-2"
-              >
-                Kelola Preset
-              </Link>
+              <div className="flex items-center gap-1.5">
+                <Link
+                  href="/presets?returnTo=/edit&create=true"
+                  className="min-h-[44px] inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-colors"
+                  title="Buat Preset Baru"
+                >
+                  <PlusIcon className="w-3.5 h-3.5" />
+                  <span>Buat Baru</span>
+                </Link>
+                <Link
+                  href="/presets?returnTo=/edit"
+                  className="min-h-[44px] inline-flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground hover:underline px-2"
+                >
+                  Kelola
+                </Link>
+              </div>
             </div>
 
-            <select
+            {/* Luxurious CustomSelect Dropdown */}
+            <CustomSelect
               value={selectedPresetId}
-              onChange={(e) => handleSelectPreset(e.target.value)}
-              className="w-full min-h-[44px] text-xs font-medium rounded-xl border border-border/60 bg-background px-3.5 py-2.5 shadow-sm focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <option value="">Tanpa Watermark</option>
-              {presets.map((preset) => (
-                <option key={preset.id} value={preset.id}>
-                  {preset.name} ({preset.settings.position})
-                </option>
-              ))}
-            </select>
+              onChange={handleSelectPreset}
+              placeholder="Pilih Preset Watermark..."
+              options={[
+                {
+                  value: "",
+                  label: "Tanpa Watermark",
+                  sublabel: "Foto bersih tanpa logo",
+                },
+                ...presets.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  sublabel: `Posisi: ${p.settings.position.replace("-", " ")} • Ukuran: ${p.settings.scalePct}%`,
+                  logoUrl: p.logoUrl,
+                })),
+              ]}
+            />
 
             {options.watermark?.preset && (
               <div className="text-[11px] text-muted-foreground bg-muted/50 p-2.5 rounded-xl flex items-center justify-between font-mono animate-in fade-in">
@@ -511,7 +673,7 @@ export default function EditPage() {
               </div>
             </div>
 
-            {/* Preset Selector Grid - Responsive Cards without truncation */}
+            {/* Preset Selector Grid */}
             <div className="grid grid-cols-2 gap-2">
               {(Object.keys(RESIZE_PRESETS) as ResizePresetId[]).map((key) => {
                 const isSelected = options.resize.presetId === key;
@@ -797,7 +959,7 @@ export default function EditPage() {
             onClick={(e) => e.stopPropagation()}
             className="text-[11px] sm:text-xs text-white/60 font-medium text-center"
           >
-            Ketuk di luar foto atau tekan tombol silang untuk menutup
+            Ketuk di luar foto atau tekan [ESC] untuk menutup
           </div>
         </div>
       )}

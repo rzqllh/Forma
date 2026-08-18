@@ -37,7 +37,30 @@ const ANCHOR_POSITIONS: Array<{
   { id: "bottom-right", label: "Kanan Bawah" },
 ];
 
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+
 export default function PresetsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+          <ArrowPathIcon className="w-4 h-4 animate-spin text-primary" />
+          <span>Memuat Preset...</span>
+        </div>
+      }
+    >
+      <PresetsContent />
+    </Suspense>
+  );
+}
+
+function PresetsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams?.get("returnTo") || null;
+  const shouldAutoCreate = searchParams?.get("create") === "true";
+
   const [presets, setPresets] = useState<Preset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -71,8 +94,12 @@ export default function PresetsPage() {
   });
 
   useEffect(() => {
-    loadPresets();
-  }, []);
+    loadPresets().then(() => {
+      if (shouldAutoCreate) {
+        handleStartNew();
+      }
+    });
+  }, [shouldAutoCreate]);
 
   const loadPresets = async () => {
     setIsLoading(true);
@@ -149,6 +176,7 @@ export default function PresetsPage() {
     setFormError(null);
 
     try {
+      let savedPresetId = editingId;
       if (editingId) {
         await updatePreset(editingId, {
           name: name.trim(),
@@ -156,15 +184,29 @@ export default function PresetsPage() {
           settings,
         });
       } else {
-        await createPreset(name.trim(), logoUrl, settings);
+        const created = await createPreset(name.trim(), logoUrl, settings);
+        savedPresetId = created.id;
       }
       setIsEditing(false);
       await loadPresets();
+
+      // If user came from Editor with returnTo parameter, redirect back automatically
+      if (returnTo) {
+        router.push(`${returnTo}?selectedPresetId=${savedPresetId}`);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal menyimpan preset";
       setFormError(msg);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    if (returnTo && !editingId) {
+      router.push(returnTo);
+    } else {
+      setIsEditing(false);
     }
   };
 
@@ -186,8 +228,8 @@ export default function PresetsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-0.5">
-            <Link href="/" className="hover:text-foreground">
-              Koleksi Foto
+            <Link href={returnTo || "/"} className="hover:text-foreground">
+              {returnTo ? "← Kembali ke Editor" : "Koleksi Foto"}
             </Link>
             <span>/</span>
             <span>Preset</span>
@@ -218,15 +260,27 @@ export default function PresetsPage() {
       {isEditing && (
         <div className="rounded-3xl border border-border/60 bg-card/80 backdrop-blur-xl p-6 sm:p-8 shadow-sm flex flex-col gap-7 animate-in fade-in">
           <div className="flex items-center justify-between border-b border-border/50 pb-5">
-            <h2 className="text-lg font-bold text-foreground">
-              {editingId ? "Edit Preset Watermark" : "Buat Preset Watermark Baru"}
-            </h2>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold shadow-inner">
+                <BookmarkIcon className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-foreground">
+                  {editingId ? "Edit Preset Watermark" : "Preset Watermark Baru"}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {returnTo
+                    ? "Setelah disimpan, preset langsung aktif di Editor Foto."
+                    : "Atur posisi, ukuran, dan transparansi logo agar proporsional."}
+                </span>
+              </div>
+            </div>
+
             <button
               type="button"
-              onClick={() => setIsEditing(false)}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-semibold px-3 py-1.5 rounded-xl border border-border/60 hover:bg-muted transition-all active:scale-95"
+              onClick={handleCancel}
+              className="text-xs font-semibold text-muted-foreground hover:text-foreground px-3.5 py-1.5 rounded-lg border border-border/60 hover:bg-muted transition-all active:scale-95"
             >
-              <ArrowLeftIcon className="w-3.5 h-3.5" />
               <span>Batal</span>
             </button>
           </div>

@@ -9,6 +9,11 @@ import {
   ProcessedResult,
 } from "../processing/types";
 import { processImageSource } from "../processing/pipeline";
+import {
+  loadActiveSession,
+  persistActiveSession,
+  clearActiveSession,
+} from "../storage/sessionStore";
 
 export class ProcessingQueueManager {
   private jobs: Map<string, QueueJob> = new Map();
@@ -127,6 +132,7 @@ export class ProcessingQueueManager {
     }
 
     this.notify();
+    this.syncToStorage();
     this.scheduleNext();
     return addedIds;
   }
@@ -155,6 +161,7 @@ export class ProcessingQueueManager {
     }
 
     this.notify();
+    this.syncToStorage();
   }
 
   public updateAllJobOptions(
@@ -176,6 +183,7 @@ export class ProcessingQueueManager {
       }
     }
     this.notify();
+    this.syncToStorage();
   }
 
   public startBatch(): void {
@@ -357,6 +365,44 @@ export class ProcessingQueueManager {
     throw new Error("Logo decode not supported in this environment");
   }
 
+  private syncToStorage(): void {
+    if (typeof window === "undefined") return;
+    const jobsList = Array.from(this.jobs.values()).map((j) => ({
+      id: j.id,
+      file: j.file,
+      options: j.options,
+    }));
+    const firstOptions = jobsList[0]?.options;
+    if (firstOptions) {
+      persistActiveSession(jobsList, firstOptions);
+    }
+  }
+
+  public async restoreSavedSession(): Promise<boolean> {
+    if (this.jobs.size > 0) return true;
+    const saved = await loadActiveSession();
+    if (!saved || saved.files.length === 0) return false;
+
+    for (const item of saved.files) {
+      const objectUrl = URL.createObjectURL(item.file);
+      const job: QueueJob = {
+        id: item.id,
+        file: item.file,
+        originalFilename: item.file.name,
+        originalSize: item.file.size,
+        objectUrl,
+        thumbnailUrl: objectUrl,
+        state: "queued",
+        progress: 0,
+        options: item.options,
+      };
+      this.jobs.set(item.id, job);
+    }
+    this.notify();
+    this.scheduleNext();
+    return true;
+  }
+
   public removeJob(id: string): void {
     const job = this.jobs.get(id);
     if (!job) return;
@@ -370,6 +416,7 @@ export class ProcessingQueueManager {
 
     this.jobs.delete(id);
     this.notify();
+    this.syncToStorage();
   }
 
   public clearAll(): void {
@@ -383,6 +430,7 @@ export class ProcessingQueueManager {
     }
     this.jobs.clear();
     this.notify();
+    clearActiveSession();
   }
 
   public destroy(): void {
