@@ -206,13 +206,19 @@ export default function ExportPage() {
 
       if (saveResult.status === "local-only") {
         setSyncStatusMessage(null);
-        setSyncErrorMessage(
-          `Foto berhasil disimpan di riwayat lokal, tetapi sinkronisasi ke server D1 gagal (${saveResult.error}).`
-        );
+        if (failedUploads > 0) {
+          setSyncErrorMessage(
+            `${historyItemPayloads.length} foto berhasil disimpan di riwayat lokal (${failedUploads} foto gagal diunggah ke Cloudinary), tetapi sinkronisasi ke server D1 gagal (${saveResult.error}).`
+          );
+        } else {
+          setSyncErrorMessage(
+            `Foto berhasil disimpan di riwayat lokal, tetapi sinkronisasi ke server D1 gagal (${saveResult.error}).`
+          );
+        }
       } else if (failedUploads > 0) {
         setSyncStatusMessage(null);
         setSyncErrorMessage(
-          `${historyItemPayloads.length} foto berhasil disimpan ke server, tetapi ${failedUploads} foto gagal diunggah ke Cloudinary.`
+          `${historyItemPayloads.length} foto berhasil disimpan ke server D1, tetapi ${failedUploads} foto gagal diunggah ke Cloudinary.`
         );
       } else {
         setSyncStatusMessage("Semua foto berhasil diunggah ke cloud dan dicatat di Riwayat server!");

@@ -41,7 +41,7 @@ No production write testing was performed during the audit. Production API check
 | Purpose | Command | Result | Verified On |
 |---|---|---|---|
 | Typecheck | `pnpm typecheck` | 0 errors | 2026-08-18 (Node v22 / Windows) |
-| Unit tests | `pnpm test -- --run` | Exit 0, 40 passed across 5 test suites with 0 stderr noise | 2026-08-18 |
+| Unit tests | `pnpm test -- --run` | Exit 0, 48 passed across 6 test suites with 0 stderr noise | 2026-08-18 |
 | Lint | `pnpm lint` | **Fail**: interactive ESLint setup prompt, not a reproducible quality gate | 2026-08-18 |
 | Production build | `pnpm build` | Static export succeeded into `out/` (zero client secrets found) | 2026-08-18 |
 

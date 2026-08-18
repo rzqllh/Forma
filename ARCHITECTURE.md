@@ -44,7 +44,7 @@ flowchart LR
 | ORM / query layer | Drizzle ORM | D1 access | Lightweight, typed, works well with D1's SQLite dialect | `package.json` |
 | Object / file storage | Cloudinary (Free) | Stores processed photos for history/download-again | Already used for [[mawmaw-interior]]; storage-only usage keeps it well inside the 25-credit pool | `docs/decisions.md` |
 | Image processing | Browser Canvas API / OffscreenCanvas, run inside Web Workers | Metadata strip, resize/compress, format convert, watermark composite, color adjustment preview | Free, no CPU-time ceiling like Workers has, keeps UI responsive via a queue | app code |
-| Authentication | None | n/a | Single user, no public access; Cloudflare Pages access itself is the gate if needed later | — |
+| Authentication | Cloudflare Access (Zero Trust) | Single-user edge identity protection with RS256 JWKS token validation on Worker | Zero public credentials embedded in client; blocks unauthenticated traffic at edge | `docs/security.md`, `workers/api/auth.ts` |
 | Validation | Zod | Upload + preset form validation | Pairs naturally with TypeScript + Drizzle | `package.json` |
 | Testing | Vitest | Unit tests for the processing pipeline logic | Fast, works well with Vite/Next tooling | `package.json` |
 | Build / package manager | pnpm | — | Matches other projects | `package.json` |

@@ -112,7 +112,7 @@ describe("Worker API: CORS Origin Security Policy", () => {
     ALLOWED_ORIGINS: "https://forma.custom-domain.com, https://preview.forma.pages.dev",
   };
 
-  it("permits allowed origin http://localhost:3000 on OPTIONS preflight", async () => {
+  it("permits allowed origin http://localhost:3000 on OPTIONS preflight with credentials", async () => {
     const req = createWorkerRequest("http://localhost:8787/api/presets", {
       method: "OPTIONS",
       headers: {
@@ -122,9 +122,10 @@ describe("Worker API: CORS Origin Security Policy", () => {
     const res = await workerDefault.fetch(req, mockEnv);
     expect(res.status).toBe(204);
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
+    expect(res.headers.get("Access-Control-Allow-Credentials")).toBe("true");
   });
 
-  it("permits allowed production Pages origin", async () => {
+  it("permits allowed production Pages origin with credentials", async () => {
     const req = createWorkerRequest("http://localhost:8787/api/presets", {
       method: "OPTIONS",
       headers: {
@@ -134,9 +135,10 @@ describe("Worker API: CORS Origin Security Policy", () => {
     const res = await workerDefault.fetch(req, mockEnv);
     expect(res.status).toBe(204);
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("https://forma-app.pages.dev");
+    expect(res.headers.get("Access-Control-Allow-Credentials")).toBe("true");
   });
 
-  it("permits custom configured origin from ALLOWED_ORIGINS", async () => {
+  it("permits custom configured origin from ALLOWED_ORIGINS with credentials", async () => {
     const req = createWorkerRequest("http://localhost:8787/api/presets", {
       method: "OPTIONS",
       headers: {
@@ -146,9 +148,10 @@ describe("Worker API: CORS Origin Security Policy", () => {
     const res = await workerDefault.fetch(req, mockEnv);
     expect(res.status).toBe(204);
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("https://forma.custom-domain.com");
+    expect(res.headers.get("Access-Control-Allow-Credentials")).toBe("true");
   });
 
-  it("rejects unauthorized origin on OPTIONS preflight with 403", async () => {
+  it("rejects unauthorized origin on OPTIONS preflight with 403 and omits credentials", async () => {
     const req = createWorkerRequest("http://localhost:8787/api/presets", {
       method: "OPTIONS",
       headers: {
@@ -158,9 +161,10 @@ describe("Worker API: CORS Origin Security Policy", () => {
     const res = await workerDefault.fetch(req, mockEnv);
     expect(res.status).toBe(403);
     expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    expect(res.headers.get("Access-Control-Allow-Credentials")).toBeNull();
   });
 
-  it("does not reflect unauthorized origin on API responses", async () => {
+  it("does not reflect unauthorized origin or credentials on API responses", async () => {
     const req = createWorkerRequest("http://localhost:8787/api/health", {
       method: "GET",
       headers: {
@@ -170,6 +174,7 @@ describe("Worker API: CORS Origin Security Policy", () => {
     const res = await workerDefault.fetch(req, mockEnv);
     expect(res.status).toBe(200);
     expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    expect(res.headers.get("Access-Control-Allow-Credentials")).toBeNull();
   });
 });
 

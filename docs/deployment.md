@@ -48,13 +48,18 @@ Two environments only — a Staging tier isn't worth the overhead for a single-u
 
 ## Configuration and Secrets
 
-| Secret | Required in | Purpose | Source |
+| Secret / Config | Required in | Purpose | Source |
 |---|---|---|---|
 | `CLOUDINARY_API_SECRET` | Worker only | Signed uploads/deletes | `wrangler secret put` |
 | `CLOUDINARY_API_KEY` | Worker only | Cloudinary auth | `wrangler secret put` |
-| `APP_SHARED_SECRET` | Worker (validates) + Pages build (injects into client fetch calls) | Low-effort access gate described in `docs/security.md` | `wrangler secret put` (Worker) + Cloudflare Pages environment variable (build-time, not committed) |
-| `CLOUDINARY_CLOUD_NAME` | Client (safe to expose) | Building asset URLs | Cloudflare Pages environment variable |
+| `APP_SHARED_SECRET` | Worker only (optional fallback) | Direct server-to-server/test secret | `wrangler secret put` (Worker only, never exposed to browser) |
+| `CF_ACCESS_TEAM_DOMAIN` | Worker (validates JWT issuer & JWKS) | Cloudflare Access team domain | `wrangler.toml` / Worker environment variable |
+| `CF_ACCESS_POLICY_AUD` | Worker (validates JWT audience) | Cloudflare Access audience tag | `wrangler.toml` / Worker secret |
+| `ALLOWED_ORIGINS` | Worker (CORS allowlist) | Permitted cross-origin hosts | `wrangler.toml` / Worker environment variable |
+| `CLOUDINARY_CLOUD_NAME` | Client (safe to expose) | Building asset URLs | Cloudflare Pages environment variable (`NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`) |
+| `NEXT_PUBLIC_API_BASE_URL` | Client (safe to expose) | API base URL target | Cloudflare Pages environment variable |
 
+- **Browser Secret Policy**: Zero confidential credentials exist in `NEXT_PUBLIC_*` or static bundles. Client relies on edge Cloudflare Access sessions with `credentials: "include"`.
 - Example environment file: `.env.example` with placeholder values only.
 - Startup behavior for missing config: Worker fails fast with a clear error on missing secrets rather than silently misbehaving.
 

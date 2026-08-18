@@ -25,7 +25,7 @@ To be filled in once the project scaffold exists and each command has actually b
 | Purpose | Command | Preconditions | Expected result | Verified on |
 |---|---|---|---|---|
 | Typecheck | `pnpm typecheck` | TypeScript configured | 0 errors | 2026-08-18 (Node v22) |
-| Unit tests | `pnpm test -- --run` | Vitest test suites | Exit 0, 39 tests pass, but unexpected queue, IndexedDB, and network errors make this an invalid quality gate | 2026-08-18 (Node v22) |
+| Unit tests | `pnpm test -- --run` | Vitest test suites (auth, local-history, icons, processing, queue) | Exit 0, 48 tests pass across 6 files with clean stderr and zero unhandled errors | 2026-08-18 (Node v22) |
 | Generate Migrations | `pnpm db:generate` | Drizzle schema | SQL migration generated | 2026-08-18 (Node v22) |
 | Production build | `pnpm build` | Next.js static export | Export complete to `out/` | 2026-08-18 (Node v22) |
 

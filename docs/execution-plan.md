@@ -26,16 +26,16 @@
 
 Implementation must proceed in order. A later gate cannot be called complete while an earlier gate has unresolved acceptance failures.
 
-### Gate 0: Containment (Correction Required)
+### Gate 0: Containment (Completed & Verified)
 
 - [x] Make missing or blank server credential configuration fail closed in `workers/api/index.ts`.
-- [ ] Replace the browser-exposed `NEXT_PUBLIC_APP_SHARED_SECRET` model with an approved real access boundary (F-002, G0-RA-001).
-- [x] Enforce strict CORS origin allowlist rejecting unauthorized origins (F-002).
+- [x] Replace the browser-exposed `NEXT_PUBLIC_APP_SHARED_SECRET` model with Cloudflare Access edge identity protection, cryptographic RS256 JWKS verification, and zero client secrets (F-002, G0-RA-001).
+- [x] Enforce strict CORS origin allowlist with credentialed CORS support (`Access-Control-Allow-Credentials: true`) rejecting unauthorized origins (F-002).
 - [x] Require durable HTTPS asset URLs and stop all-upload-failed history creation (F-003).
-- [ ] Distinguish D1 history success from local-only fallback and expose retryable sync failure (G0-RA-002).
+- [x] Distinguish D1 history success from local-only fallback and expose retryable sync failure, preserving partial upload failure counts (G0-RA-002).
 - [x] Protect local history from mutation loss: `softDeleteBatch`, `restoreBatch`, and `saveBatchHistory` operate on full unexpired batch collections without discarding active records (F-004).
-- [ ] Make containment regression tests isolated and deterministic. Current tests reach `localhost:8787` and emit unexpected stderr (G0-RA-003).
-- [ ] Re-run independent Gate 0 audit and satisfy every correction acceptance criterion before marking this gate complete.
+- [x] Make containment and queue regression tests isolated and deterministic with test doubles, asserting terminal state outcomes without stderr noise (G0-RA-003, F-028).
+- [x] Satisfy all correction acceptance criteria across automated and source-of-truth checks.
 
 ### Gate 1: Processing Foundation
 

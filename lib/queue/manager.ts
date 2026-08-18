@@ -4,6 +4,7 @@ import {
   QueueSubscriber,
   QueueSummary,
 } from "./types";
+export type { QueueJob, JobState, QueueSubscriber, QueueSummary };
 import {
   ProcessingPipelineOptions,
   ProcessedResult,

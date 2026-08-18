@@ -14,6 +14,8 @@ export interface Env {
   ASSETS?: Fetcher;
   APP_SHARED_SECRET?: string;
   ALLOWED_ORIGINS?: string;
+  CF_ACCESS_TEAM_DOMAIN?: string;
+  CF_ACCESS_POLICY_AUD?: string;
   CLOUDINARY_CLOUD_NAME?: string;
   CLOUDINARY_API_KEY?: string;
   CLOUDINARY_API_SECRET?: string;
@@ -115,15 +117,20 @@ export function getAllowedOrigin(request: Request, env?: Env): string | null {
   return null;
 }
 
+import { verifyAuth } from "./auth";
+export { verifyAuth } from "./auth";
+
 export function corsHeaders(request: Request, env?: Env): HeadersInit {
   const allowedOrigin = getAllowedOrigin(request, env);
   const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-App-Secret, Authorization",
+    "Access-Control-Allow-Headers":
+      "Content-Type, X-App-Secret, Authorization, Cf-Access-Jwt-Assertion",
     "Access-Control-Max-Age": "86400",
   };
   if (allowedOrigin) {
     headers["Access-Control-Allow-Origin"] = allowedOrigin;
+    headers["Access-Control-Allow-Credentials"] = "true";
   }
   return headers;
 }
@@ -150,37 +157,6 @@ function errorResponse(
   env?: Env
 ): Response {
   return jsonResponse({ error: message }, status, request, env);
-}
-
-// Authentication verification: Fail-closed gate supporting Cloudflare Access identity and server secret
-export function verifyAuth(request: Request, env: Env): boolean {
-  // 1. Cloudflare Access identity header check (injected by Cloudflare Access at edge)
-  const cfIdentity =
-    request.headers.get("cf-access-jwt-assertion") ||
-    request.headers.get("cf-access-authenticated-user-email");
-  if (cfIdentity && cfIdentity.trim() !== "") {
-    return true;
-  }
-
-  // 2. Direct server/test API gate (X-App-Secret or Bearer token)
-  const secretHeader = request.headers.get("X-App-Secret");
-  const authHeader = request.headers.get("Authorization");
-  const bearerToken = authHeader?.startsWith("Bearer ")
-    ? authHeader.substring(7).trim()
-    : null;
-
-  const providedSecret = secretHeader || bearerToken;
-
-  if (
-    env.APP_SHARED_SECRET &&
-    env.APP_SHARED_SECRET.trim() !== "" &&
-    providedSecret === env.APP_SHARED_SECRET
-  ) {
-    return true;
-  }
-
-  // 3. Fail closed
-  return false;
 }
 
 export default {
@@ -235,9 +211,15 @@ export default {
       );
     }
 
-    // Verify Shared Secret Gate (Fail Closed)
-    if (!verifyAuth(request, env)) {
-      return errorResponse("Unauthorized: Missing or invalid X-App-Secret header", 401, request, env);
+    // Verify Authentication Gate (Cloudflare Access JWT or Server Secret)
+    const isAuthorized = await verifyAuth(request, env);
+    if (!isAuthorized) {
+      return errorResponse(
+        "Unauthorized: Missing or invalid credentials",
+        401,
+        request,
+        env
+      );
     }
 
     const db = drizzle(env.DB);
