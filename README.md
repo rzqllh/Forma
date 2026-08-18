@@ -1,5 +1,3 @@
-# README.md
-
 # FORMA
 
 **Refine without redesigning.**
@@ -11,7 +9,7 @@ Built initially around interior design workflows, FORMA handles the repetitive w
 ## What FORMA Does
 
 * **Metadata Cleanup**
-  Remove EXIF, GPS, camera information, and other unnecessary metadata before sharing files.
+  Remove EXIF, GPS, camera information, and other unnecessary metadata before sharing files while preserving visual color fidelity.
 
 * **Watermark Studio**
   Apply logo watermarks with configurable position, scale, opacity, and rotation.
@@ -20,7 +18,7 @@ Built initially around interior design workflows, FORMA handles the repetitive w
   Save reusable watermark configurations for different clients and projects.
 
 * **Resize & Compression**
-  Prepare images for common social media, web, and custom dimensions.
+  Prepare images for common social media, web, and custom dimensions with explicit framing control (Cover/Contain).
 
 * **Non-Destructive Adjustments**
   Fine-tune warmth, brightness, contrast, and saturation without modifying the original file.
@@ -69,11 +67,11 @@ Metadata should still be reviewed before publishing files that contain sensitive
 
 FORMA is built with:
 
-* Next.js
-* Browser Canvas APIs
+* Next.js (App Router, Static Export)
+* Browser Canvas & ImageBitmap APIs
 * JSZip
-* Cloudflare D1 for persistent workspace data
-* Heroicons
+* Cloudflare D1 for persistent workspace data & sync
+* Tailwind CSS & Heroicons
 
 ## Status
 
@@ -81,9 +79,9 @@ FORMA is built with:
 
 The current implementation has passed:
 
-* Type checking
-* Automated tests
-* Production build verification
+* Type checking (`pnpm typecheck`)
+* Automated unit tests (`pnpm test`)
+* Production build verification (`pnpm build`)
 
 Device and real-world image acceptance testing should still be performed before relying on FORMA for critical production workflows.
 
