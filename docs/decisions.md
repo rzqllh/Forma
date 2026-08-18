@@ -41,14 +41,14 @@
 
 ---
 
-### ADR-004: Shared-Secret Header Gate for API Endpoints
+### ADR-004: Cloudflare Access Edge Boundary & Zero Client Secrets
 
 - **Status**: Confirmed
-- **Context**: Single-user internal tool with no requirement for multi-user authentication, OAuth, or password management. However, the Worker API endpoint is deployed on a public URL.
-- **Decision**: Require an `X-App-Secret` HTTP header matching `APP_SHARED_SECRET` on all Worker API requests.
+- **Context**: As identified in the Gate 0 Re-Audit (G0-RA-001), baking shared secrets into browser bundles (`NEXT_PUBLIC_APP_SHARED_SECRET`) fails to provide a confidential security boundary for production deployments.
+- **Decision**: Protect the production frontend and Worker API with Cloudflare Access (Zero Trust) at the edge. Remove all shared secrets from client bundles. Worker API validates edge identity headers (`Cf-Access-*`) and supports `APP_SHARED_SECRET` strictly for server-to-server/test integration.
 - **Consequences**:
-  - *Positive*: Prevents casual discovery and unauthorized use of the D1 database or Cloudinary signing endpoint with zero user login friction.
-  - *Negative*: Not a substitute for multi-tenant auth (acceptable for this single-user tool).
+  - *Positive*: Zero credentials exposed in static JavaScript bundles; unauthenticated traffic rejected before reaching application or worker routes; no custom multi-user authentication system needed.
+  - *Negative*: Operator authenticates once via Cloudflare Access (e.g. Email PIN) when opening the application.
 
 ---
 
@@ -60,3 +60,15 @@
 - **Consequences**:
   - *Positive*: Deploys effortlessly as static assets to Cloudflare Pages CDN; provides accessible UI primitives with complete design system control.
   - *Negative*: Next.js server runtime features (e.g. server actions, SSR) are not used; all backend logic lives in the Cloudflare Worker.
+
+---
+
+### ADR-006: Discriminated History Persistence Contract
+
+- **Status**: Confirmed
+- **Context**: When saving batches and items to history, D1 network or server failure could occur while local storage fallback succeeded. Conflating both under an untyped success return caused UI to falsely claim batches were recorded on the cloud server (G0-RA-002).
+- **Decision**: Return a discriminated union from `saveBatchHistory` (`{ status: "remote-saved", batch }` vs `{ status: "local-only", batch, error }`). The UI truthfully distinguishes server sync from local-only fallback and presents actionable status.
+- **Consequences**:
+  - *Positive*: Eliminates false-success UI claims; operator knows when remote database persistence failed and can retry or export locally.
+  - *Negative*: Callers must handle both status variants.
+

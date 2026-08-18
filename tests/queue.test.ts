@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ProcessingQueueManager } from "@/lib/queue/manager";
 import { ProcessingPipelineOptions } from "@/lib/processing/types";
+import * as sessionStore from "@/lib/storage/sessionStore";
+import * as pipelineModule from "@/lib/processing/pipeline";
 
 describe("Queue Management & Concurrency", () => {
   const defaultOptions: ProcessingPipelineOptions = {
@@ -20,6 +22,33 @@ describe("Queue Management & Concurrency", () => {
     // Mock URL.createObjectURL and URL.revokeObjectURL
     global.URL.createObjectURL = vi.fn(() => "blob:mock-url-" + Math.random());
     global.URL.revokeObjectURL = vi.fn();
+
+    // Mock sessionStore to prevent unsupported IndexedDB warnings in happy-dom
+    vi.spyOn(sessionStore, "persistActiveSession").mockResolvedValue();
+    vi.spyOn(sessionStore, "clearActiveSession").mockResolvedValue();
+
+    // Mock createImageBitmap to return a valid mock bitmap
+    globalThis.createImageBitmap = vi.fn().mockResolvedValue({
+      width: 800,
+      height: 600,
+      close: vi.fn(),
+    } as unknown as ImageBitmap);
+
+    // Mock image processing pipeline
+    vi.spyOn(pipelineModule, "processImageSource").mockResolvedValue({
+      blob: new Blob(["processed-image-bytes"], { type: "image/jpeg" }),
+      thumbnailDataUrl: "data:image/jpeg;base64,mockthumb",
+      width: 800,
+      height: 600,
+      format: "image/jpeg",
+      byteSize: 1024,
+      operationsApplied: {
+        metadataStripped: true,
+        watermarked: false,
+        resized: false,
+        colorAdjusted: false,
+      },
+    });
   });
 
   it("initializes with tuned concurrency", () => {

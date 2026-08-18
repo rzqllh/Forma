@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   getLocalBatches,
   getAllRawLocalBatches,
@@ -12,6 +12,15 @@ import { Batch, HistoryItem } from "@/db/schema";
 describe("Local History Storage: Soft-Delete and Restore Data Loss Fix (F-004)", () => {
   beforeEach(() => {
     localStorage.clear();
+    // Default fetch mock simulates offline worker so calls safely fall back locally without ECONNREFUSED
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("Worker offline for test simulation"))
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("preserves active batches when soft-deleting a single batch", async () => {
@@ -155,7 +164,7 @@ describe("Local History Storage: Soft-Delete and Restore Data Loss Fix (F-004)",
     expect(getLocalBatches(true)).toHaveLength(1);
 
     // Save a new batch (fallback path)
-    await saveBatchHistory("New Active Batch", null, [
+    const result = await saveBatchHistory("New Active Batch", null, [
       {
         originalFilename: "kitchen.jpg",
         cloudinaryUrl: "https://res.cloudinary.com/test/image/upload/v1/kitchen.jpg",
@@ -168,9 +177,61 @@ describe("Local History Storage: Soft-Delete and Restore Data Loss Fix (F-004)",
       },
     ]);
 
+    expect(result.status).toBe("local-only");
     // Check that both the new active batch AND the old deleted batch exist
     expect(getLocalBatches(false)).toHaveLength(1);
     expect(getLocalBatches(true)).toHaveLength(1);
     expect(getAllRawLocalBatches()).toHaveLength(2);
+  });
+
+  it("returns status 'remote-saved' when server API call succeeds", async () => {
+    const mockBatchRecord = {
+      id: "batch-server-1",
+      label: "Server Batch",
+      presetId: null,
+      createdAt: new Date().toISOString(),
+      deletedAt: null,
+    };
+    const mockItemRecords = [
+      {
+        id: "item-server-1",
+        batchId: "batch-server-1",
+        originalFilename: "living.jpg",
+        cloudinaryUrl: "https://res.cloudinary.com/test/image/upload/v1/living.jpg",
+        operationsApplied: {
+          metadataStripped: true,
+          watermarked: false,
+          resized: false,
+          colorAdjusted: false,
+        },
+        createdAt: new Date().toISOString(),
+        deletedAt: null,
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ batch: mockBatchRecord, items: mockItemRecords }),
+      })
+    );
+
+    const result = await saveBatchHistory("Server Batch", null, [
+      {
+        originalFilename: "living.jpg",
+        cloudinaryUrl: "https://res.cloudinary.com/test/image/upload/v1/living.jpg",
+        operationsApplied: {
+          metadataStripped: true,
+          watermarked: false,
+          resized: false,
+          colorAdjusted: false,
+        },
+      },
+    ]);
+
+    expect(result.status).toBe("remote-saved");
+    expect(result.batch.id).toBe("batch-server-1");
+    expect(getLocalBatches(false)).toHaveLength(1);
   });
 });

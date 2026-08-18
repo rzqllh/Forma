@@ -202,15 +202,21 @@ export default function ExportPage() {
       }
 
       setSyncStatusMessage("Mencatat ke riwayat pengiriman...");
-      await saveBatchHistory(batchLabel.trim(), null, historyItemPayloads);
+      const saveResult = await saveBatchHistory(batchLabel.trim(), null, historyItemPayloads);
 
-      if (failedUploads > 0) {
+      if (saveResult.status === "local-only") {
         setSyncStatusMessage(null);
         setSyncErrorMessage(
-          `${historyItemPayloads.length} foto berhasil disimpan ke cloud, tetapi ${failedUploads} foto gagal diunggah.`
+          `Foto berhasil disimpan di riwayat lokal, tetapi sinkronisasi ke server D1 gagal (${saveResult.error}).`
+        );
+      } else if (failedUploads > 0) {
+        setSyncStatusMessage(null);
+        setSyncErrorMessage(
+          `${historyItemPayloads.length} foto berhasil disimpan ke server, tetapi ${failedUploads} foto gagal diunggah ke Cloudinary.`
         );
       } else {
-        setSyncStatusMessage("Semua foto berhasil diunggah dan dicatat di Riwayat!");
+        setSyncStatusMessage("Semua foto berhasil diunggah ke cloud dan dicatat di Riwayat server!");
+        setSyncErrorMessage(null);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal menyimpan ke cloud";

@@ -38,10 +38,12 @@ Not applicable at this scale, explicitly excluded: cross-tenant access, account 
 
 ## Authentication
 
-- Identity provider: none — single user, no login flow.
-- Access control substitute: every Worker API endpoint requires a static shared-secret header (`X-App-Secret`), checked server-side before any D1/Cloudinary operation. This is not real authentication — it's a low-effort gate against casual/accidental discovery of the URL, appropriate to the actual risk level (no sensitive data, no financial exposure).
-- Session or token storage: n/a.
-- Service account authentication: the Worker authenticates to Cloudinary using an API key/secret pair stored as a Cloudflare Worker secret, never exposed to the browser.
+- Identity provider & boundary: Cloudflare Access in front of the application domain and API routes.
+- Access control model: Cloudflare Access enforces authentication (e.g. Email One-Time PIN / Zero Trust) at Cloudflare's edge before requests reach application or worker routes. Worker API checks edge-injected identity headers (`Cf-Access-*`) and fails closed on unauthenticated requests.
+- Server-to-server / test access: Worker supports `APP_SHARED_SECRET` via `X-App-Secret` or `Authorization: Bearer <secret>` for non-browser clients and automated integration tests.
+- Browser client security: **Zero confidential credentials are included in the frontend build bundle.** The browser relies on edge session cookies and origin allowlists.
+- Session or token storage: Edge session managed by Cloudflare Access.
+- Service account authentication: The Worker authenticates to Cloudinary using an API key/secret pair stored as a Cloudflare Worker secret, never exposed to the browser.
 
 ## Authorization
 
@@ -53,7 +55,7 @@ Not applicable — single principal, every resource is hers. No role matrix need
 |---|---|---|---|
 | Photo upload | Browser file picker/drag-drop | MIME type allowlist (JPEG/PNG/WebP) + magic-byte sniff, not just file extension | Soft warning ~40MB/file, no hard batch limit at this scale |
 | Preset form (name, logo) | Preset Manager UI | Zod schema on the Worker boundary — required fields, opacity/scale ranges | Logo upload same image-safety checks as photos |
-| Worker API requests | Browser fetch calls | Zod-validated request bodies; shared-secret header required | Relies on Cloudflare's default abuse protection at this traffic volume — no custom rate limiter needed |
+| Worker API requests | Browser fetch calls | Zod-validated request bodies; HTTPS-only Cloudinary URLs; fail-closed auth | Relies on Cloudflare's default abuse protection at this traffic volume — no custom rate limiter needed |
 
 - Filename and path handling: uploaded filenames are stored as display metadata only (`original_filename` in `HistoryItem`), never used to construct a filesystem path — Cloudinary handles storage addressing internally.
 - Malware scanning: not implemented — accepted risk given the file-safety checks above and that files are processed client-side (Canvas), not executed.
@@ -61,21 +63,21 @@ Not applicable — single principal, every resource is hers. No role matrix need
 
 ## Browser and Client Security
 
-- Cookie attributes: none used (no auth session).
-- CSRF protection: not applicable in the traditional sense (no cookie-based session to forge), but the shared-secret header on Worker calls incidentally prevents naive cross-origin abuse too.
-- CORS policy: Worker API restricts allowed origins to the deployed Pages domain (and `localhost` in dev) — not left open (`*`).
+- Cookie attributes: Edge session cookies managed by Cloudflare Access (`SameSite`, `HttpOnly`, `Secure`).
+- CSRF protection: SameSite cookies + strict CORS allowlist on Worker API endpoints.
+- CORS policy: Worker API restricts allowed origins to the deployed Pages domain (and `localhost` in dev) — arbitrary/hostile origins are rejected (HTTP 403 on preflight).
 - Content Security Policy: default-src self, restricting script/style origins to the app's own domain plus Cloudinary's asset domain.
-- Client-visible environment variables: only the Cloudinary cloud name (public, safe to expose) and the app's own API base URL — never the API secret.
+- Client-visible environment variables: only the Cloudinary cloud name (public, safe to expose) and the app's own API base URL — never secrets.
 
 ## Secrets and Key Management
 
 | Secret | Used by | Storage | Rotation |
 |---|---|---|---|
 | Cloudinary API secret | Worker (signed upload, delete) | Cloudflare Worker secret (`wrangler secret put`) | Manual, rotate if ever suspected leaked |
-| Worker shared-secret header value | Worker (request gate) | Cloudflare Worker secret + stored client-side in a build-time env var (not committed) | Manual rotation if the URL is ever shared beyond intended use |
+| Worker server secret (`APP_SHARED_SECRET`) | Worker (server/test direct access) | Cloudflare Worker secret (`wrangler secret put`) / local test env only | Manual rotation |
 
 - No real secrets in source, examples, or fixtures — `.env.example` ships with placeholder values only.
-- Production secret injection: via Cloudflare dashboard / `wrangler secret put`, never via committed files.
+- Production secret injection: via Cloudflare dashboard / `wrangler secret put`, never via committed files or client bundles.
 
 ## Data Protection and Privacy
 
@@ -87,7 +89,7 @@ Not applicable — single principal, every resource is hers. No role matrix need
 
 ## Rate Limits and Abuse Controls
 
-Not a priority at this traffic volume (single user, low request rate) — Cloudflare's platform-level protections are sufficient. Revisit only if the shared-secret header is ever compromised and abuse is observed.
+Not a priority at this traffic volume (single user, low request rate) — Cloudflare's platform-level protections are sufficient. Revisit only if abuse is observed.
 
 ## Dependencies and Supply Chain
 
@@ -104,5 +106,5 @@ Not a priority at this traffic volume (single user, low request rate) — Cloudf
 
 | Risk | Impact | Current control | Accepted by | Review trigger |
 |---|---|---|---|---|
-| No real authentication, only a shared-secret header | Low — no sensitive/financial data, single user | Shared-secret header + obscure URL | Hafizh | If the tool becomes multi-user or client-facing |
+| Single owner edge access boundary | Low — internal tool | Cloudflare Access edge policy | Hafizh | If the tool becomes multi-user or client-facing |
 | No malware/content scanning on uploads | Low — client-side Canvas processing, no server execution of uploaded files | MIME/magic-byte check only | Hafizh | If the tool ever accepts uploads from anyone other than the owner |

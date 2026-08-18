@@ -2,9 +2,6 @@ import { Preset, Batch, HistoryItem, PresetSettings, OperationsApplied } from "@
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8787";
-const SHARED_SECRET =
-  process.env.NEXT_PUBLIC_APP_SHARED_SECRET ||
-  "development-shared-secret-change-in-prod";
 
 // Local storage fallback keys when backend worker is not running locally
 const LOCAL_PRESETS_KEY = "forma_local_presets";
@@ -69,19 +66,19 @@ async function apiFetch<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const headers = new Headers(options.headers || {});
-  headers.set("X-App-Secret", SHARED_SECRET);
   if (!headers.has("Content-Type") && options.body && typeof options.body === "string") {
     headers.set("Content-Type", "application/json");
   }
 
-  // Fast 1.5s timeout controller to avoid freezing UI when worker is offline
+  // Fast 2s timeout controller to avoid freezing UI when worker is offline
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 1500);
+  const timeoutId = setTimeout(() => controller.abort(), 2000);
 
   try {
     const res = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers,
+      credentials: "include",
       signal: options.signal || controller.signal,
     });
 
@@ -190,6 +187,10 @@ export async function fetchBatchHistory(
   }
 }
 
+export type SaveBatchHistoryResult =
+  | { status: "remote-saved"; batch: Batch & { items: HistoryItem[] } }
+  | { status: "local-only"; batch: Batch & { items: HistoryItem[] }; error: string };
+
 export async function saveBatchHistory(
   label: string,
   presetId: string | null,
@@ -198,7 +199,7 @@ export async function saveBatchHistory(
     cloudinaryUrl: string;
     operationsApplied: OperationsApplied;
   }>
-): Promise<Batch & { items: HistoryItem[] }> {
+): Promise<SaveBatchHistoryResult> {
   try {
     const data = await apiFetch<{
       batch: Batch;
@@ -212,8 +213,9 @@ export async function saveBatchHistory(
     const filtered = all.filter((b) => b.id !== full.id);
     filtered.unshift(full);
     saveLocalBatches(filtered);
-    return full;
-  } catch (err) {
+    return { status: "remote-saved", batch: full };
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : "Gagal terhubung ke API server";
     const batchId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `batch_${Date.now()}`;
     const now = new Date().toISOString();
     const batch: Batch = {
@@ -237,7 +239,7 @@ export async function saveBatchHistory(
     const filtered = all.filter((b) => b.id !== full.id);
     filtered.unshift(full);
     saveLocalBatches(filtered);
-    return full;
+    return { status: "local-only", batch: full, error: errMsg };
   }
 }
 

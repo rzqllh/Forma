@@ -25,7 +25,7 @@ To be filled in once the project scaffold exists and each command has actually b
 | Purpose | Command | Preconditions | Expected result | Verified on |
 |---|---|---|---|---|
 | Typecheck | `pnpm typecheck` | TypeScript configured | 0 errors | 2026-08-18 (Node v22) |
-| Unit tests | `pnpm test` | Vitest test suites | 25 tests pass | 2026-08-18 (Node v22) |
+| Unit tests | `pnpm test -- --run` | Vitest test suites | Exit 0, 39 tests pass, but unexpected queue, IndexedDB, and network errors make this an invalid quality gate | 2026-08-18 (Node v22) |
 | Generate Migrations | `pnpm db:generate` | Drizzle schema | SQL migration generated | 2026-08-18 (Node v22) |
 | Production build | `pnpm build` | Next.js static export | Export complete to `out/` | 2026-08-18 (Node v22) |
 
@@ -46,6 +46,7 @@ No dedicated E2E/contract/performance/security test tiers — disproportionate t
 |---|---|
 | Processing logic (metadata/resize/watermark/color) | Unit test proving correct output on a representative sample image, including edge cases (already-stripped metadata, transparent PNG watermark, very small/large source image) |
 | Queue/worker-pool logic | Unit test for concurrency limiting and partial-failure handling (one job fails, others continue) |
+| Local-history logic | Injected API transport; no real localhost request; active and deleted records preserved together |
 | Soft-delete/purge job | Unit test asserting the 24h boundary — a record at 23h59m is untouched, a record at 24h01m is purged |
 | Worker API endpoint | Schema validation test + shared-secret rejection test (negative case) |
 | UI behavior | Manual pass through loading/empty/error/success states listed in `DESIGN.md` |
@@ -87,5 +88,6 @@ Before the first real use with actual client photos, walk through once and recor
 ## Passing Change Definition
 
 - Lint, typecheck, and unit tests pass.
+- Unit tests emit no unexpected stderr, make no unintended network requests, and await all asynchronous work they start.
 - The specific risk areas above (processing correctness, queue behavior, 24h boundary) have test evidence, not just "it worked when I clicked around."
 - Any check skipped for a given change is noted with a reason, rather than silently omitted.

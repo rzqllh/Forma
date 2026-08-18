@@ -6,8 +6,9 @@
 - Owner: repository maintainer
 - Started: 2026-08-18
 - Audit status: complete on `docs/full-app-audit`
-- Product remediation status: not started; requires explicit phase approval
+- Product remediation status: Gate 0 implemented, independent re-audit found correction work
 - Primary evidence: `docs/audits/2026-08-18-full-app-audit.md`
+- Gate 0 re-audit: `docs/audits/2026-08-18-gate-0-containment-reaudit.md`
 - UI findings: `anti-slop/audit-001-2026-08-18.md`
 
 ## Audit Completion
@@ -25,13 +26,16 @@
 
 Implementation must proceed in order. A later gate cannot be called complete while an earlier gate has unresolved acceptance failures.
 
-### Gate 0: Containment (Completed)
+### Gate 0: Containment (Correction Required)
 
-- [x] Enforce a real API access boundary and strict production configuration (fail-closed auth in `workers/api/index.ts`).
+- [x] Make missing or blank server credential configuration fail closed in `workers/api/index.ts`.
+- [ ] Replace the browser-exposed `NEXT_PUBLIC_APP_SHARED_SECRET` model with an approved real access boundary (F-002, G0-RA-001).
 - [x] Enforce strict CORS origin allowlist rejecting unauthorized origins (F-002).
-- [x] Stop false-success cloud history: Zod schema enforces durable `https://` URLs, and UI separates cloud upload errors from success (F-003).
+- [x] Require durable HTTPS asset URLs and stop all-upload-failed history creation (F-003).
+- [ ] Distinguish D1 history success from local-only fallback and expose retryable sync failure (G0-RA-002).
 - [x] Protect local history from mutation loss: `softDeleteBatch`, `restoreBatch`, and `saveBatchHistory` operate on full unexpired batch collections without discarding active records (F-004).
-- [x] Add regression tests for unauthenticated access, CORS, durable upload/history, and local delete/restore (`tests/worker-api.test.ts` & `tests/local-history.test.ts`).
+- [ ] Make containment regression tests isolated and deterministic. Current tests reach `localhost:8787` and emit unexpected stderr (G0-RA-003).
+- [ ] Re-run independent Gate 0 audit and satisfy every correction acceptance criterion before marking this gate complete.
 
 ### Gate 1: Processing Foundation
 
@@ -39,6 +43,8 @@ Implementation must proceed in order. A later gate cannot be called complete whi
 - Make metadata/ICC behavior explicit and verifiable.
 - Guarantee failure-path cleanup and required-operation error handling.
 - Validate 1, 10, and 40-photo batches with representative fixtures.
+
+Gate 1 design and planning may proceed, but Gate 1 cannot be accepted while Gate 0 correction remains open.
 
 ### Gate 2: Core Operator Flow
 

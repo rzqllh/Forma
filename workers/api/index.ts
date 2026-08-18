@@ -152,13 +152,35 @@ function errorResponse(
   return jsonResponse({ error: message }, status, request, env);
 }
 
-// Authentication verification: Fail-closed gate
+// Authentication verification: Fail-closed gate supporting Cloudflare Access identity and server secret
 export function verifyAuth(request: Request, env: Env): boolean {
-  if (!env.APP_SHARED_SECRET || env.APP_SHARED_SECRET.trim() === "") {
-    return false;
+  // 1. Cloudflare Access identity header check (injected by Cloudflare Access at edge)
+  const cfIdentity =
+    request.headers.get("cf-access-jwt-assertion") ||
+    request.headers.get("cf-access-authenticated-user-email");
+  if (cfIdentity && cfIdentity.trim() !== "") {
+    return true;
   }
-  const provided = request.headers.get("X-App-Secret");
-  return Boolean(provided && provided === env.APP_SHARED_SECRET);
+
+  // 2. Direct server/test API gate (X-App-Secret or Bearer token)
+  const secretHeader = request.headers.get("X-App-Secret");
+  const authHeader = request.headers.get("Authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.substring(7).trim()
+    : null;
+
+  const providedSecret = secretHeader || bearerToken;
+
+  if (
+    env.APP_SHARED_SECRET &&
+    env.APP_SHARED_SECRET.trim() !== "" &&
+    providedSecret === env.APP_SHARED_SECRET
+  ) {
+    return true;
+  }
+
+  // 3. Fail closed
+  return false;
 }
 
 export default {
