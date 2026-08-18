@@ -49,7 +49,7 @@ export default function EditPage() {
   return (
     <Suspense
       fallback={
-        <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+        <div className="h-[calc(100dvh-3.5rem)] flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <ArrowPathIcon className="w-4 h-4 animate-spin text-primary" />
           <span>Memuat Studio Editor...</span>
         </div>
@@ -226,18 +226,35 @@ function EditPageContent() {
   };
 
   const handleResizePresetChange = (presetKey: ResizePresetId) => {
-    const newOpts = {
+    const presetConfig = RESIZE_PRESETS[presetKey];
+    const newOpts: ProcessingPipelineOptions = {
       ...options,
       resize: {
         ...options.resize,
         presetId: presetKey,
+        fitMode: presetConfig?.fitMode || (options.resize.fitMode || "cover"),
+      },
+    };
+    applyOptionsToActive(newOpts);
+  };
+
+  const handleCustomDimensionChange = (
+    field: "customWidth" | "customHeight",
+    value: number
+  ) => {
+    const newOpts: ProcessingPipelineOptions = {
+      ...options,
+      resize: {
+        ...options.resize,
+        presetId: "custom",
+        [field]: value > 0 ? value : undefined,
       },
     };
     applyOptionsToActive(newOpts);
   };
 
   const handleFitModeChange = (fitMode: "cover" | "contain") => {
-    const newOpts = {
+    const newOpts: ProcessingPipelineOptions = {
       ...options,
       resize: {
         ...options.resize,
@@ -248,7 +265,7 @@ function EditPageContent() {
   };
 
   const handleFormatChange = (format: OutputFormat) => {
-    const newOpts = {
+    const newOpts: ProcessingPipelineOptions = {
       ...options,
       resize: {
         ...options.resize,
@@ -259,7 +276,7 @@ function EditPageContent() {
   };
 
   const handleQualityChange = (quality: number) => {
-    const newOpts = {
+    const newOpts: ProcessingPipelineOptions = {
       ...options,
       resize: {
         ...options.resize,
@@ -270,7 +287,7 @@ function EditPageContent() {
   };
 
   const handleColorToggle = () => {
-    const newOpts = {
+    const newOpts: ProcessingPipelineOptions = {
       ...options,
       colorAdjustment: {
         enabled: !options.colorAdjustment?.enabled,
@@ -281,7 +298,7 @@ function EditPageContent() {
   };
 
   const handleColorIntensityChange = (intensityPct: number) => {
-    const newOpts = {
+    const newOpts: ProcessingPipelineOptions = {
       ...options,
       colorAdjustment: {
         enabled: true,
@@ -292,7 +309,7 @@ function EditPageContent() {
   };
 
   const handleResetColor = () => {
-    const newOpts = {
+    const newOpts: ProcessingPipelineOptions = {
       ...options,
       colorAdjustment: {
         enabled: false,
@@ -365,52 +382,58 @@ function EditPageContent() {
 
   if (jobs.length === 0) {
     return (
-      <div className="max-w-xl mx-auto py-20 px-6 text-center flex flex-col items-center justify-center gap-4 animate-fade-in">
-        <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center text-muted-foreground shadow-inner">
-          <PhotoIcon className="w-8 h-8" />
+      <div className="h-[calc(100dvh-3.5rem)] flex items-center justify-center p-6 text-center animate-fade-in">
+        <div className="max-w-md flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-3xl bg-muted flex items-center justify-center text-muted-foreground shadow-inner">
+            <PhotoIcon className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">
+            Belum Ada Foto di Sesi Aktif
+          </h2>
+          <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+            Silakan masukkan foto hasil photoshoot di menu Koleksi Foto terlebih dahulu.
+          </p>
+          <Link
+            href="/"
+            className="mt-2 min-h-[44px] inline-flex items-center px-6 py-2.5 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-sm active:scale-95"
+          >
+            Buka Koleksi Foto
+          </Link>
         </div>
-        <h2 className="text-xl font-bold tracking-tight text-foreground">
-          Belum Ada Foto di Sesi Aktif
-        </h2>
-        <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-          Yuk masukkan foto-foto hasil photoshoot di menu Koleksi Foto terlebih dahulu.
-        </p>
-        <Link
-          href="/"
-          className="mt-3 min-h-[44px] inline-flex items-center px-6 py-2.5 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-sm active:scale-95"
-        >
-          Buka Koleksi Foto
-        </Link>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-3.5rem)] lg:overflow-hidden pb-24 lg:pb-0 animate-fade-in">
+    <div className="h-[calc(100dvh-3.5rem)] flex flex-col overflow-hidden bg-background animate-fade-in">
       {/* ----------------------------------------------------------- */}
-      {/* TOP SUB-HEADER BAR (WITH UNDO / REDO & ACTIONS) */}
+      {/* TOP SUB-HEADER BAR (WITH CLEAN SPACING, UNDO/REDO & ACTIONS) */}
       {/* ----------------------------------------------------------- */}
-      <div className="h-14 border-b border-border/50 bg-card/70 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
-        <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
+      <div className="h-14 border-b border-border/50 bg-card/80 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between shrink-0 z-20">
+        {/* Left Side: Back button + Breadcrumb + Undo/Redo */}
+        <div className="flex items-center gap-2 sm:gap-3 overflow-hidden min-w-0">
           <Link
             href="/"
-            className="min-h-[40px] px-2.5 py-1.5 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-semibold rounded-lg border border-border/50 hover:bg-muted/50 transition-all active:scale-95 shrink-0"
+            className="min-h-[36px] px-2.5 sm:px-3 py-1.5 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-semibold rounded-xl border border-border/50 hover:bg-muted/60 transition-all active:scale-95 shrink-0"
+            title="Kembali ke Koleksi"
           >
             <ArrowLeftIcon className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Koleksi</span>
+            <span className="hidden sm:inline">Koleksi</span>
           </Link>
-          <span className="text-xs text-muted-foreground shrink-0">/</span>
-          <div className="flex items-baseline gap-1.5 truncate">
-            <span className="text-xs font-bold text-foreground truncate">
-              Studio Finishing
+
+          <span className="text-xs text-muted-foreground/50 shrink-0 hidden xs:inline">/</span>
+
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-xs sm:text-sm font-bold text-foreground truncate">
+              Studio
             </span>
-            <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-              ({jobs.length} foto)
+            <span className="text-[10px] sm:text-xs font-mono font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+              {jobs.length} foto
             </span>
           </div>
 
           {/* Undo / Redo Toolbar Controls */}
-          <div className="hidden sm:flex items-center gap-1 ml-2 pl-2 border-l border-border/60">
+          <div className="hidden md:flex items-center gap-1 ml-1.5 pl-2 border-l border-border/60">
             <button
               type="button"
               onClick={handleUndo}
@@ -432,12 +455,13 @@ function EditPageContent() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Right Side: Process & Export Buttons */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={handleStartBatch}
             disabled={summary.isProcessing}
-            className="min-h-[40px] px-3 sm:px-3.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50 active:scale-95"
+            className="min-h-[36px] px-3 sm:px-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50 active:scale-95 shrink-0"
           >
             {summary.isProcessing ? (
               <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
@@ -454,36 +478,37 @@ function EditPageContent() {
 
           <Link
             href="/export"
-            className="min-h-[40px] px-3 sm:px-3.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl border border-border/60 bg-background hover:bg-muted transition-all active:scale-95 shadow-sm"
+            className="min-h-[36px] px-3 sm:px-4 py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl border border-border/60 bg-background hover:bg-muted transition-all active:scale-95 shadow-sm shrink-0"
           >
-            <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-            <span>Ekspor ({summary.done})</span>
+            <ArrowDownTrayIcon className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="hidden sm:inline">Ekspor ({summary.done})</span>
+            <span className="sm:hidden">Ekspor ({summary.done})</span>
           </Link>
         </div>
       </div>
 
       {/* ----------------------------------------------------------- */}
-      {/* MAIN LAYOUT: VERTICAL STACK ON MOBILE, 2-COLUMN ON DESKTOP */}
+      {/* MAIN LAYOUT: CANVAS & FILMSTRIP (LEFT/TOP) + SIDEBAR (RIGHT) */}
       {/* ----------------------------------------------------------- */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
         {/* ----------------------------------------------------------- */}
-        {/* VIEWPORT & PREVIEW AREA (PRIMARY VISUAL CANVAS) */}
+        {/* CANVAS VIEWPORT & FILMSTRIP (FIT TO SCREEN, NO OUTER SCROLL) */}
         {/* ----------------------------------------------------------- */}
-        <div className="w-full lg:flex-1 flex flex-col bg-background/50 order-1 lg:order-2 shrink-0 lg:shrink lg:overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 bg-background/50 overflow-hidden order-1 lg:order-1">
           {/* Main Inspection Canvas Viewport */}
-          <div className="p-3 sm:p-6 lg:p-8 flex items-center justify-center relative overflow-hidden bg-dot-pattern">
+          <div className="flex-1 min-h-0 p-2 sm:p-4 lg:p-6 flex items-center justify-center relative overflow-hidden bg-dot-pattern">
             {activeJob ? (
-              <div className="w-full h-[38vh] min-h-[260px] max-h-[380px] sm:h-[48vh] sm:max-h-[500px] lg:h-full lg:max-h-[68vh] flex items-center justify-center relative group">
+              <div className="w-full h-full max-h-full max-w-full flex items-center justify-center relative group min-h-0">
                 {/* Dedicated Explicit Fullscreen Zoom Button */}
                 <button
                   type="button"
                   onClick={() => setLightboxOpen(true)}
-                  className="min-h-[40px] min-w-[40px] absolute top-3 right-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 backdrop-blur-md text-white text-xs font-semibold shadow-xl transition-all active:scale-95 border border-white/10"
+                  className="min-h-[36px] absolute top-2.5 right-2.5 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 backdrop-blur-md text-white text-xs font-semibold shadow-xl transition-all active:scale-95 border border-white/10"
                   title="Lihat Pratinjau Foto Penuh (F)"
                 >
-                  <MagnifyingGlassPlusIcon className="w-4 h-4 text-primary-foreground" />
-                  <span className="hidden xs:inline">Zoom Penuh</span>
-                  <span className="text-[10px] opacity-70 font-mono hidden md:inline">[F]</span>
+                  <MagnifyingGlassPlusIcon className="w-3.5 h-3.5 text-primary-foreground" />
+                  <span className="text-[11px] font-medium hidden xs:inline">Zoom Penuh</span>
+                  <span className="text-[9px] opacity-70 font-mono hidden md:inline">[F]</span>
                 </button>
 
                 {options.colorAdjustment?.enabled ? (
@@ -491,18 +516,31 @@ function EditPageContent() {
                   <SplitComparisonSlider
                     originalSrc={activeJob.objectUrl}
                     adjustedSrc={activeJob.resultBlobUrl || activeJob.objectUrl}
-                    className="w-full h-full"
+                    className="w-full h-full max-h-full max-w-full"
                     alt={activeJob.originalFilename}
                   />
                 ) : (
-                  // Standard Preview Viewport
-                  <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/10 flex items-center justify-center">
+                  // Standard Preview Viewport (Strictly Fit to Container)
+                  <div className="relative w-full h-full max-h-full max-w-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/40 flex items-center justify-center min-h-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={activeJob.resultBlobUrl || activeJob.objectUrl}
                       alt={activeJob.originalFilename}
-                      className="w-full h-full object-contain block rounded-2xl transition-all duration-300"
+                      className="max-w-full max-h-full object-contain block rounded-xl transition-all duration-300"
                     />
+
+                    {/* Output Dimension Tag */}
+                    {activeJob.result && (
+                      <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[10px] font-mono font-medium shadow-md flex items-center gap-1.5">
+                        <span>
+                          {activeJob.result.width} × {activeJob.result.height} px
+                        </span>
+                        <span className="opacity-50">•</span>
+                        <span className="uppercase text-[9px] text-white/80">
+                          {options.resize.presetId.replace("-", " ")}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -514,7 +552,7 @@ function EditPageContent() {
           </div>
 
           {/* Quick Filmstrip Carousel */}
-          <div className="border-y lg:border-t lg:border-b-0 border-border/50 bg-card/80 backdrop-blur-md px-3 sm:px-6 py-2.5 sm:py-3 flex items-center gap-2.5 sm:gap-3.5 overflow-x-auto shrink-0 scrollbar-thin">
+          <div className="h-20 sm:h-24 border-t border-border/50 bg-card/80 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center gap-2.5 sm:gap-3.5 overflow-x-auto shrink-0 scrollbar-thin">
             {jobs.map((job, idx) => {
               const isSelected = job.id === activeJob?.id;
               return (
@@ -522,9 +560,9 @@ function EditPageContent() {
                   key={job.id}
                   type="button"
                   onClick={() => handleSelectJob(job)}
-                  className={`group relative h-16 sm:h-20 aspect-[4/3] rounded-xl overflow-hidden border-2 shrink-0 transition-all duration-200 active:scale-95 ${
+                  className={`group relative h-14 sm:h-16 aspect-[4/3] rounded-xl overflow-hidden border-2 shrink-0 transition-all duration-200 active:scale-95 ${
                     isSelected
-                      ? "border-primary ring-4 ring-primary/20 scale-105 shadow-md"
+                      ? "border-primary ring-3 ring-primary/20 scale-105 shadow-md"
                       : "border-border/60 opacity-70 hover:opacity-100 hover:scale-[1.02]"
                   }`}
                 >
@@ -549,22 +587,22 @@ function EditPageContent() {
         </div>
 
         {/* ----------------------------------------------------------- */}
-        {/* CONTROLS & OPERATIONS PANEL (STACKED ON MOBILE, SIDEBAR ON DESKTOP) */}
+        {/* CONTROLS & OPERATIONS SIDEBAR (ONLY THIS SECTION SCROLLS) */}
         {/* ----------------------------------------------------------- */}
-        <div className="w-full lg:w-96 lg:border-r border-border/50 bg-card/60 backdrop-blur-xl p-4 sm:p-6 flex flex-col gap-4 sm:gap-5 order-2 lg:order-1 shrink-0 lg:overflow-y-auto">
-          {/* Section Header for Mobile */}
-          <div className="lg:hidden flex items-center justify-between pb-1 border-b border-border/40">
+        <div className="w-full lg:w-96 lg:max-w-sm border-t lg:border-t-0 lg:border-l border-border/50 bg-card/60 backdrop-blur-xl p-4 sm:p-5 flex flex-col gap-4 order-2 lg:order-2 shrink-0 overflow-y-auto min-h-0 max-h-[45vh] lg:max-h-full scrollbar-thin">
+          {/* Section Header */}
+          <div className="flex items-center justify-between pb-1 border-b border-border/40 shrink-0">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Pengaturan Finishing
             </span>
-            <span className="text-[11px] text-primary font-medium">
-              Foto #{jobs.findIndex((j) => j.id === activeJob?.id) + 1} Terpilih
+            <span className="text-[11px] text-primary font-semibold">
+              Foto #{jobs.findIndex((j) => j.id === activeJob?.id) + 1}
             </span>
           </div>
 
           {/* Operation 1: EXIF Metadata Stripping */}
           <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-2.5 shadow-sm hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between min-h-[44px]">
+            <div className="flex items-center justify-between min-h-[38px]">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
                   <ShieldCheckIcon className="w-4 h-4" />
@@ -591,7 +629,7 @@ function EditPageContent() {
             </p>
           </div>
 
-          {/* Operation 2: Watermark Preset Selection with Themed CustomSelect */}
+          {/* Operation 2: Watermark Preset Selection */}
           <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3 shadow-sm hover:border-primary/40 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -611,22 +649,22 @@ function EditPageContent() {
               <div className="flex items-center gap-1.5">
                 <Link
                   href="/presets?returnTo=/edit&create=true"
-                  className="min-h-[44px] inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-colors"
+                  className="min-h-[36px] inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-colors"
                   title="Buat Preset Baru"
                 >
                   <PlusIcon className="w-3.5 h-3.5" />
-                  <span>Buat Baru</span>
+                  <span>Buat</span>
                 </Link>
                 <Link
                   href="/presets?returnTo=/edit"
-                  className="min-h-[44px] inline-flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground hover:underline px-2"
+                  className="min-h-[36px] inline-flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground hover:underline px-2"
                 >
                   Kelola
                 </Link>
               </div>
             </div>
 
-            {/* Luxurious CustomSelect Dropdown */}
+            {/* CustomSelect Dropdown */}
             <CustomSelect
               value={selectedPresetId}
               onChange={handleSelectPreset}
@@ -657,7 +695,7 @@ function EditPageContent() {
             )}
           </div>
 
-          {/* Operation 3: Resize & Compress Preset */}
+          {/* Operation 3: Resize & Aspect Ratio (Ukuran & Rasio Foto) */}
           <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3.5 shadow-sm hover:border-primary/40 transition-colors">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 shrink-0">
@@ -668,7 +706,7 @@ function EditPageContent() {
                   Ukuran & Rasio Foto
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  Pilihan ukuran siap kirim
+                  Pilihan rasio & kompresi siap kirim
                 </span>
               </div>
             </div>
@@ -709,6 +747,50 @@ function EditPageContent() {
               })}
             </div>
 
+            {/* Custom Dimension Inputs when "custom" is active */}
+            {options.resize.presetId === "custom" && (
+              <div className="grid grid-cols-2 gap-2.5 p-3 rounded-xl bg-muted/40 border border-border/60 animate-in fade-in">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-semibold text-foreground">
+                    Lebar (px)
+                  </label>
+                  <input
+                    type="number"
+                    min="100"
+                    max="10000"
+                    placeholder="Misal: 1920"
+                    value={options.resize.customWidth || ""}
+                    onChange={(e) =>
+                      handleCustomDimensionChange(
+                        "customWidth",
+                        parseInt(e.target.value, 10) || 0
+                      )
+                    }
+                    className="w-full px-3 py-1.5 rounded-lg border border-border/60 bg-background text-xs font-mono text-foreground focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-semibold text-foreground">
+                    Tinggi (px)
+                  </label>
+                  <input
+                    type="number"
+                    min="100"
+                    max="10000"
+                    placeholder="Misal: 1080"
+                    value={options.resize.customHeight || ""}
+                    onChange={(e) =>
+                      handleCustomDimensionChange(
+                        "customHeight",
+                        parseInt(e.target.value, 10) || 0
+                      )
+                    }
+                    className="w-full px-3 py-1.5 rounded-lg border border-border/60 bg-background text-xs font-mono text-foreground focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Fit Mode Selector (Cover vs Contain) */}
             <div className="flex flex-col gap-1.5 pt-2 border-t border-border/50">
               <span className="text-xs font-semibold text-foreground">
@@ -718,7 +800,7 @@ function EditPageContent() {
                 <button
                   type="button"
                   onClick={() => handleFitModeChange("cover")}
-                  className={`min-h-[44px] py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
+                  className={`min-h-[40px] py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
                     options.resize.fitMode === "cover"
                       ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
                       : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border-border/60"
@@ -729,7 +811,7 @@ function EditPageContent() {
                 <button
                   type="button"
                   onClick={() => handleFitModeChange("contain")}
-                  className={`min-h-[44px] py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
+                  className={`min-h-[40px] py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
                     options.resize.fitMode === "contain"
                       ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
                       : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border-border/60"
@@ -759,7 +841,7 @@ function EditPageContent() {
                       key={fmt.id}
                       type="button"
                       onClick={() => handleFormatChange(fmt.id)}
-                      className={`min-h-[44px] py-2 px-2 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
+                      className={`min-h-[40px] py-2 px-2 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
                         isChosen
                           ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
                           : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border-border/60"
@@ -783,7 +865,7 @@ function EditPageContent() {
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between text-xs min-h-[30px]">
+                  <div className="flex items-center justify-between text-xs min-h-[26px]">
                     <span className="font-semibold text-foreground">
                       Kualitas Kompresi (
                       {options.resize.format === "image/webp" ? "WebP" : "JPG"})
@@ -810,7 +892,7 @@ function EditPageContent() {
 
           {/* Operation 4: Non-Destructive Auto-Color Preview */}
           <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3.5 shadow-sm hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between min-h-[44px]">
+            <div className="flex items-center justify-between min-h-[38px]">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
                   <AdjustmentsVerticalIcon className="w-4 h-4" />
@@ -835,7 +917,7 @@ function EditPageContent() {
 
             {options.colorAdjustment?.enabled && (
               <div className="flex flex-col gap-3 pt-3 border-t border-border/50 animate-in fade-in">
-                <div className="flex items-center justify-between text-xs min-h-[30px]">
+                <div className="flex items-center justify-between text-xs min-h-[26px]">
                   <span className="font-semibold text-foreground">Intensitas Warna</span>
                   <span className="font-mono text-muted-foreground">
                     {options.colorAdjustment.intensityPct}%
@@ -855,7 +937,7 @@ function EditPageContent() {
                 <button
                   type="button"
                   onClick={handleResetColor}
-                  className="min-h-[44px] flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground py-2.5 rounded-xl border border-border/60 hover:bg-muted/50 transition-all active:scale-95"
+                  className="min-h-[40px] flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground py-2 rounded-xl border border-border/60 hover:bg-muted/50 transition-all active:scale-95"
                 >
                   <ArrowPathIcon className="w-3.5 h-3.5" />
                   <span>Kembalikan ke Warna Asli</span>
@@ -867,68 +949,35 @@ function EditPageContent() {
       </div>
 
       {/* ----------------------------------------------------------- */}
-      {/* MOBILE & DESKTOP STICKY BOTTOM ACTION BAR */}
-      {/* ----------------------------------------------------------- */}
-      <div className="fixed lg:static bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-card/95 backdrop-blur-xl px-4 sm:px-6 py-2.5 lg:py-0 lg:h-16 flex items-center justify-between gap-3 shadow-2xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground">
-          <span className="hidden sm:inline">Progres:</span>
-          <span className="font-semibold text-foreground">
-            {summary.done} / {summary.total}
-          </span>
-          <span className="hidden xs:inline">selesai</span>
-          {summary.isProcessing && (
-            <div className="flex items-center gap-1 text-accent font-semibold ml-1">
-              <ArrowPathIcon className="w-3 h-3 animate-spin" />
-              <span className="hidden sm:inline">Memproses...</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={handleStartBatch}
-            disabled={summary.isProcessing}
-            className="min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-xs font-semibold rounded-xl border border-border/60 bg-background hover:bg-muted disabled:opacity-50 transition-all active:scale-95 shadow-sm"
-          >
-            <PlayIcon className="w-3.5 h-3.5 text-primary" />
-            <span className="hidden sm:inline">Proses Semua</span>
-            <span className="sm:hidden">Proses</span>
-          </button>
-
-          <Link
-            href="/export"
-            className="min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all active:scale-95 shadow-sm"
-          >
-            <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-            <span>Ekspor</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* ----------------------------------------------------------- */}
-      {/* FULL-SCREEN HIGH-RESOLUTION LIGHTBOX MODAL */}
+      {/* FULL-SCREEN HIGH-RESOLUTION LIGHTBOX MODAL (z-[100]) */}
       {/* ----------------------------------------------------------- */}
       {lightboxOpen && activeJob && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Pratinjau ${activeJob.originalFilename}`}
           onClick={() => setLightboxOpen(false)}
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-between p-4 sm:p-6 animate-fade-in"
+          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-6 overflow-y-auto animate-fade-in"
         >
           {/* Top Bar Header */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-6xl flex items-center justify-between text-white"
+            className="w-full max-w-6xl mx-auto flex items-center justify-between text-white shrink-0 mb-4"
           >
             <div className="flex items-center gap-2 overflow-hidden">
               <span className="text-xs sm:text-sm font-semibold truncate max-w-[200px] sm:max-w-md">
                 {activeJob.originalFilename}
               </span>
-              {activeJob.originalDimensions && (
-                <span className="text-[10px] sm:text-xs text-white/60 font-mono shrink-0">
+              {activeJob.result ? (
+                <span className="text-[10px] sm:text-xs text-white/70 font-mono shrink-0">
+                  ({activeJob.result.width} × {activeJob.result.height} px)
+                </span>
+              ) : activeJob.originalDimensions ? (
+                <span className="text-[10px] sm:text-xs text-white/70 font-mono shrink-0">
                   ({activeJob.originalDimensions.width} ×{" "}
                   {activeJob.originalDimensions.height} px)
                 </span>
-              )}
+              ) : null}
             </div>
 
             <button
@@ -944,11 +993,18 @@ function EditPageContent() {
           {/* Main Zoomable Photo Canvas */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 w-full max-w-6xl flex items-center justify-center p-2 sm:p-4 overflow-hidden"
+            className="flex-1 w-full max-w-6xl mx-auto flex items-center justify-center p-2 sm:p-4 min-h-0 my-auto"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={activeJob.resultBlobUrl || activeJob.objectUrl}
+              src={
+                activeJob.resultBlobUrl ||
+                (activeJob.result?.blob
+                  ? URL.createObjectURL(activeJob.result.blob)
+                  : undefined) ||
+                activeJob.objectUrl ||
+                activeJob.thumbnailUrl
+              }
               alt={activeJob.originalFilename}
               className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl"
             />
@@ -957,7 +1013,7 @@ function EditPageContent() {
           {/* Bottom Caption */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="text-[11px] sm:text-xs text-white/60 font-medium text-center"
+            className="text-[11px] sm:text-xs text-white/70 font-medium text-center shrink-0 mt-4 mx-auto"
           >
             Ketuk di luar foto atau tekan [ESC] untuk menutup
           </div>
