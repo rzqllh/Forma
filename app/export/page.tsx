@@ -51,6 +51,17 @@ export default function ExportPage() {
     return unsub;
   }, []);
 
+  // Keyboard shortcut listener to close preview on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && previewJob) {
+        setPreviewJob(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [previewJob]);
+
   const completedJobs = jobs.filter((j) => j.state === "done" && j.result);
 
   const totalByteSize = completedJobs.reduce(
@@ -66,15 +77,22 @@ export default function ExportPage() {
   };
 
   const handleDownloadSingle = (job: QueueJob) => {
-    if (!job.result || !job.resultBlobUrl) return;
+    if (!job.result) return;
+    let url = job.resultBlobUrl;
+    if (!url && job.result.blob) {
+      url = URL.createObjectURL(job.result.blob);
+    }
+    if (!url) url = job.objectUrl;
+    if (!url) return;
+
     const a = document.createElement("a");
-    a.href = job.resultBlobUrl;
+    a.href = url;
     const ext =
       job.result.format === "image/png"
         ? "png"
         : job.result.format === "image/webp"
-        ? "webp"
-        : "jpg";
+          ? "webp"
+          : "jpg";
     const baseName = job.originalFilename.replace(/\.[^/.]+$/, "");
     a.download = `${baseName}_finished.${ext}`;
     document.body.appendChild(a);
@@ -98,8 +116,8 @@ export default function ExportPage() {
           job.result.format === "image/png"
             ? "png"
             : job.result.format === "image/webp"
-            ? "webp"
-            : "jpg";
+              ? "webp"
+              : "jpg";
         const baseName = job.originalFilename.replace(/\.[^/.]+$/, "");
         const fileName = `${baseName}_finished.${ext}`;
         folder.file(fileName, job.result.blob);
@@ -135,8 +153,7 @@ export default function ExportPage() {
     try {
       const signedParams = await getSignedUploadParams("forma_photos").catch((err) => {
         throw new Error(
-          `Koneksi cloud upload gagal: ${
-            err instanceof Error ? err.message : "Tidak dapat memperoleh izin upload"
+          `Koneksi cloud upload gagal: ${err instanceof Error ? err.message : "Tidak dapat memperoleh izin upload"
           }`
         );
       });
@@ -354,7 +371,7 @@ export default function ExportPage() {
       {/* Batch Name Config */}
       <div className="rounded-2xl border border-border/60 p-5 bg-card/60 backdrop-blur-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-bold text-foreground">Nama Paket Pengiriman</span>
+          <span className="text-xs font-bold text-foreground">Nama File Zip</span>
           <span className="text-[11px] text-muted-foreground">
             Dipakai sebagai nama file ZIP dan label riwayat pengiriman
           </span>
@@ -403,11 +420,11 @@ export default function ExportPage() {
                     <span className="text-[11px] text-muted-foreground font-mono">
                       {isDone
                         ? `${job.result?.width}x${job.result?.height} • ${formatFileSize(
-                            job.result?.byteSize || 0
-                          )}`
+                          job.result?.byteSize || 0
+                        )}`
                         : job.state === "processing"
-                        ? "Sedang diproses..."
-                        : "Dalam antrean"}
+                          ? "Sedang diproses..."
+                          : "Dalam antrean"}
                     </span>
                   </div>
                 </div>
@@ -441,31 +458,35 @@ export default function ExportPage() {
       {/* Lightbox Modal in Export View */}
       {previewJob && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Pratinjau ${previewJob.originalFilename}`}
           onClick={() => setPreviewJob(null)}
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-between p-4 sm:p-6 animate-fade-in"
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-6 overflow-y-auto animate-fade-in"
         >
+          {/* Top Bar Header */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-5xl flex items-center justify-between text-white"
+            className="w-full max-w-5xl mx-auto flex items-center justify-between text-white shrink-0 mb-4"
           >
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold truncate">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <span className="text-sm font-semibold truncate max-w-[220px] sm:max-w-md">
                 {previewJob.originalFilename}
               </span>
               {previewJob.result && (
-                <span className="text-xs text-white/60 font-mono">
+                <span className="text-xs text-white/70 font-mono shrink-0">
                   ({previewJob.result.width} × {previewJob.result.height} px •{" "}
                   {formatFileSize(previewJob.result.byteSize)})
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {previewJob.result && (
                 <button
                   type="button"
                   onClick={() => handleDownloadSingle(previewJob)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all active:scale-95 shadow-sm"
+                  className="min-h-[44px] flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all active:scale-95 shadow-sm"
                 >
                   <ArrowDownTrayIcon className="w-4 h-4" />
                   <span>Download</span>
@@ -474,30 +495,40 @@ export default function ExportPage() {
               <button
                 type="button"
                 onClick={() => setPreviewJob(null)}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all active:scale-90"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-all active:scale-90"
+                aria-label="Tutup Pratinjau"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
           </div>
 
+          {/* Main Photo Preview */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 w-full max-w-5xl flex items-center justify-center p-2 sm:p-4 overflow-hidden"
+            className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center p-2 sm:p-4 min-h-0 my-auto"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={previewJob.resultBlobUrl || previewJob.objectUrl}
+              src={
+                previewJob.resultBlobUrl ||
+                (previewJob.result?.blob
+                  ? URL.createObjectURL(previewJob.result.blob)
+                  : undefined) ||
+                previewJob.objectUrl ||
+                previewJob.thumbnailUrl
+              }
               alt={previewJob.originalFilename}
-              className="max-w-full max-h-[82vh] object-contain rounded-xl shadow-2xl"
+              className="max-w-full max-h-[75vh] object-contain rounded-xl shadow-2xl"
             />
           </div>
 
+          {/* Bottom Caption */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="text-xs text-white/60 font-medium"
+            className="text-xs text-white/70 font-medium text-center shrink-0 mt-4 mx-auto"
           >
-            Klik di luar foto atau tombol silang untuk menutup
+            Klik di luar foto atau tekan [ESC] untuk menutup
           </div>
         </div>
       )}
