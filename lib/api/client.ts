@@ -27,7 +27,7 @@ export function saveLocalPresets(presets: Preset[]): void {
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
-export function getLocalBatches(includeDeleted = false): (Batch & { items: HistoryItem[] })[] {
+export function getAllRawLocalBatches(): (Batch & { items: HistoryItem[] })[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(LOCAL_BATCHES_KEY);
@@ -45,13 +45,18 @@ export function getLocalBatches(includeDeleted = false): (Batch & { items: Histo
       saveLocalBatches(unexpiredList);
     }
 
-    if (includeDeleted) {
-      return unexpiredList.filter((b) => b.deletedAt !== null);
-    }
-    return unexpiredList.filter((b) => b.deletedAt === null);
+    return unexpiredList;
   } catch {
     return [];
   }
+}
+
+export function getLocalBatches(includeDeleted = false): (Batch & { items: HistoryItem[] })[] {
+  const all = getAllRawLocalBatches();
+  if (includeDeleted) {
+    return all.filter((b) => b.deletedAt !== null);
+  }
+  return all.filter((b) => b.deletedAt === null);
 }
 
 export function saveLocalBatches(batches: (Batch & { items: HistoryItem[] })[]): void {
@@ -203,9 +208,10 @@ export async function saveBatchHistory(
       body: JSON.stringify({ label, presetId, items }),
     });
     const full = { ...data.batch, items: data.items };
-    const local = getLocalBatches(false);
-    local.unshift(full);
-    saveLocalBatches(local);
+    const all = getAllRawLocalBatches();
+    const filtered = all.filter((b) => b.id !== full.id);
+    filtered.unshift(full);
+    saveLocalBatches(filtered);
     return full;
   } catch (err) {
     const batchId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `batch_${Date.now()}`;
@@ -227,9 +233,10 @@ export async function saveBatchHistory(
       deletedAt: null,
     }));
     const full = { ...batch, items: historyItemsList };
-    const local = getLocalBatches(false);
-    local.unshift(full);
-    saveLocalBatches(local);
+    const all = getAllRawLocalBatches();
+    const filtered = all.filter((b) => b.id !== full.id);
+    filtered.unshift(full);
+    saveLocalBatches(filtered);
     return full;
   }
 }
@@ -241,8 +248,8 @@ export async function softDeleteBatch(batchId: string): Promise<void> {
     // ignore
   }
   const now = new Date().toISOString();
-  const local = getLocalBatches(true);
-  const updated = local.map((b) => {
+  const all = getAllRawLocalBatches();
+  const updated = all.map((b) => {
     if (b.id === batchId) {
       return {
         ...b,
@@ -261,8 +268,8 @@ export async function restoreBatch(batchId: string): Promise<void> {
   } catch (err) {
     // ignore
   }
-  const local = getLocalBatches(true);
-  const updated = local.map((b) => {
+  const all = getAllRawLocalBatches();
+  const updated = all.map((b) => {
     if (b.id === batchId) {
       return {
         ...b,

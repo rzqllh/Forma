@@ -133,6 +133,14 @@ export default function ExportPage() {
     setSyncErrorMessage(null);
 
     try {
+      const signedParams = await getSignedUploadParams("forma_photos").catch((err) => {
+        throw new Error(
+          `Koneksi cloud upload gagal: ${
+            err instanceof Error ? err.message : "Tidak dapat memperoleh izin upload"
+          }`
+        );
+      });
+
       const historyItemPayloads: Array<{
         originalFilename: string;
         cloudinaryUrl: string;
@@ -145,61 +153,69 @@ export default function ExportPage() {
         };
       }> = [];
 
-      let signedParams;
-      try {
-        signedParams = await getSignedUploadParams("forma_photos");
-      } catch (err) {
-        console.warn("API upload cloud belum aktif:", err);
-      }
+      let failedUploads = 0;
 
       for (let i = 0; i < completedJobs.length; i++) {
         const job = completedJobs[i];
         if (!job.result) continue;
 
-        setSyncStatusMessage(`Menyimpan foto ${i + 1} dari ${completedJobs.length}...`);
+        setSyncStatusMessage(`Mengunggah foto ${i + 1} dari ${completedJobs.length} ke cloud...`);
 
-        let uploadedUrl = job.resultBlobUrl || "";
+        try {
+          const formData = new FormData();
+          formData.append("file", job.result.blob);
+          formData.append("api_key", signedParams.apiKey);
+          formData.append("timestamp", signedParams.timestamp.toString());
+          formData.append("signature", signedParams.signature);
+          formData.append("folder", signedParams.folder);
 
-        if (signedParams) {
-          try {
-            const formData = new FormData();
-            formData.append("file", job.result.blob);
-            formData.append("api_key", signedParams.apiKey);
-            formData.append("timestamp", signedParams.timestamp.toString());
-            formData.append("signature", signedParams.signature);
-            formData.append("folder", signedParams.folder);
-
-            const uploadRes = await fetch(
-              `https://api.cloudinary.com/v1_1/${signedParams.cloudName}/image/upload`,
-              {
-                method: "POST",
-                body: formData,
-              }
-            );
-
-            if (uploadRes.ok) {
-              const resData = (await uploadRes.json()) as { secure_url?: string };
-              uploadedUrl = resData.secure_url || uploadedUrl;
+          const uploadRes = await fetch(
+            `https://api.cloudinary.com/v1_1/${signedParams.cloudName}/image/upload`,
+            {
+              method: "POST",
+              body: formData,
             }
-          } catch (uploadErr) {
-            console.warn("Upload gagal untuk foto:", job.id, uploadErr);
-          }
-        }
+          );
 
-        historyItemPayloads.push({
-          originalFilename: job.originalFilename,
-          cloudinaryUrl: uploadedUrl,
-          operationsApplied: job.result.operationsApplied,
-        });
+          if (!uploadRes.ok) {
+            throw new Error(`HTTP ${uploadRes.status}`);
+          }
+
+          const resData = (await uploadRes.json()) as { secure_url?: string };
+          if (!resData.secure_url || !resData.secure_url.startsWith("https://")) {
+            throw new Error("URL Cloudinary tidak valid");
+          }
+
+          historyItemPayloads.push({
+            originalFilename: job.originalFilename,
+            cloudinaryUrl: resData.secure_url,
+            operationsApplied: job.result.operationsApplied,
+          });
+        } catch (uploadErr) {
+          failedUploads++;
+          console.warn("Upload gagal untuk foto:", job.id, uploadErr);
+        }
+      }
+
+      if (historyItemPayloads.length === 0) {
+        throw new Error("Semua file gagal diunggah ke Cloudinary. Riwayat cloud tidak disimpan.");
       }
 
       setSyncStatusMessage("Mencatat ke riwayat pengiriman...");
       await saveBatchHistory(batchLabel.trim(), null, historyItemPayloads);
 
-      setSyncStatusMessage("Berhasil disimpan ke Riwayat!");
+      if (failedUploads > 0) {
+        setSyncStatusMessage(null);
+        setSyncErrorMessage(
+          `${historyItemPayloads.length} foto berhasil disimpan ke cloud, tetapi ${failedUploads} foto gagal diunggah.`
+        );
+      } else {
+        setSyncStatusMessage("Semua foto berhasil diunggah dan dicatat di Riwayat!");
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal menyimpan";
+      const msg = err instanceof Error ? err.message : "Gagal menyimpan ke cloud";
       setSyncErrorMessage(msg);
+      setSyncStatusMessage(null);
     } finally {
       setIsCloudSyncing(false);
     }

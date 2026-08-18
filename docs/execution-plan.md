@@ -25,11 +25,13 @@
 
 Implementation must proceed in order. A later gate cannot be called complete while an earlier gate has unresolved acceptance failures.
 
-### Gate 0: Containment
+### Gate 0: Containment (Completed)
 
-- Enforce a real API access boundary and strict production configuration.
-- Stop false-success cloud history and protect local history from mutation loss.
-- Add regression tests for unauthenticated access, CORS, durable upload/history, and local delete/restore.
+- [x] Enforce a real API access boundary and strict production configuration (fail-closed auth in `workers/api/index.ts`).
+- [x] Enforce strict CORS origin allowlist rejecting unauthorized origins (F-002).
+- [x] Stop false-success cloud history: Zod schema enforces durable `https://` URLs, and UI separates cloud upload errors from success (F-003).
+- [x] Protect local history from mutation loss: `softDeleteBatch`, `restoreBatch`, and `saveBatchHistory` operate on full unexpired batch collections without discarding active records (F-004).
+- [x] Add regression tests for unauthenticated access, CORS, durable upload/history, and local delete/restore (`tests/worker-api.test.ts` & `tests/local-history.test.ts`).
 
 ### Gate 1: Processing Foundation
 

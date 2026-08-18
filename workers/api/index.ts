@@ -13,6 +13,7 @@ export interface Env {
   DB: D1Database;
   ASSETS?: Fetcher;
   APP_SHARED_SECRET?: string;
+  ALLOWED_ORIGINS?: string;
   CLOUDINARY_CLOUD_NAME?: string;
   CLOUDINARY_API_KEY?: string;
   CLOUDINARY_API_SECRET?: string;
@@ -49,7 +50,12 @@ const UpdatePresetSchema = CreatePresetSchema.partial();
 const CreateHistoryItemSchema = z.object({
   id: z.string().optional(),
   originalFilename: z.string().min(1),
-  cloudinaryUrl: z.string().url(),
+  cloudinaryUrl: z
+    .string()
+    .url()
+    .refine((url) => url.startsWith("https://"), {
+      message: "cloudinaryUrl must be a durable HTTPS URL",
+    }),
   operationsApplied: z.object({
     metadataStripped: z.boolean(),
     watermarked: z.boolean(),
@@ -86,26 +92,53 @@ async function generateSha1(str: string): Promise<string> {
 }
 
 // CORS & Response Helpers
-function corsHeaders(request: Request): HeadersInit {
-  const origin = request.headers.get("Origin") || "*";
-  return {
-    "Access-Control-Allow-Origin": origin,
+export function getAllowedOrigin(request: Request, env?: Env): string | null {
+  const origin = request.headers.get("Origin");
+  if (!origin) return null;
+
+  const defaultAllowed = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8787",
+    "https://forma-app.pages.dev",
+  ];
+
+  const envAllowed = env?.ALLOWED_ORIGINS
+    ? env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+    : [];
+
+  const allowedList = new Set([...defaultAllowed, ...envAllowed]);
+
+  if (allowedList.has(origin)) {
+    return origin;
+  }
+  return null;
+}
+
+export function corsHeaders(request: Request, env?: Env): HeadersInit {
+  const allowedOrigin = getAllowedOrigin(request, env);
+  const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-App-Secret, Authorization",
     "Access-Control-Max-Age": "86400",
   };
+  if (allowedOrigin) {
+    headers["Access-Control-Allow-Origin"] = allowedOrigin;
+  }
+  return headers;
 }
 
 function jsonResponse(
   data: unknown,
   status = 200,
-  request?: Request
+  request?: Request,
+  env?: Env
 ): Response {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
   if (request) {
-    Object.assign(headers, corsHeaders(request));
+    Object.assign(headers, corsHeaders(request, env));
   }
   return new Response(JSON.stringify(data), { status, headers });
 }
@@ -113,17 +146,19 @@ function jsonResponse(
 function errorResponse(
   message: string,
   status = 400,
-  request?: Request
+  request?: Request,
+  env?: Env
 ): Response {
-  return jsonResponse({ error: message }, status, request);
+  return jsonResponse({ error: message }, status, request, env);
 }
 
-// Authentication verification
-function verifyAuth(request: Request, env: Env): boolean {
-  // If no secret configured in dev, allow
-  if (!env.APP_SHARED_SECRET) return true;
+// Authentication verification: Fail-closed gate
+export function verifyAuth(request: Request, env: Env): boolean {
+  if (!env.APP_SHARED_SECRET || env.APP_SHARED_SECRET.trim() === "") {
+    return false;
+  }
   const provided = request.headers.get("X-App-Secret");
-  return provided === env.APP_SHARED_SECRET;
+  return Boolean(provided && provided === env.APP_SHARED_SECRET);
 }
 
 export default {
@@ -134,9 +169,14 @@ export default {
 
     // Handle CORS preflight
     if (method === "OPTIONS") {
+      const origin = request.headers.get("Origin");
+      const allowedOrigin = getAllowedOrigin(request, env);
+      if (origin && !allowedOrigin) {
+        return new Response("Forbidden origin", { status: 403 });
+      }
       return new Response(null, {
         status: 204,
-        headers: corsHeaders(request),
+        headers: corsHeaders(request, env),
       });
     }
 
@@ -153,11 +193,12 @@ export default {
           timestamp: new Date().toISOString(),
         },
         200,
-        request
+        request,
+        env
       );
     }
 
-    // Health check endpoint
+    // Health check endpoint (public, unauthenticated)
     if (path === "/api/health") {
       return jsonResponse(
         {
@@ -167,13 +208,14 @@ export default {
           timestamp: new Date().toISOString(),
         },
         200,
-        request
+        request,
+        env
       );
     }
 
-    // Verify Shared Secret Gate
+    // Verify Shared Secret Gate (Fail Closed)
     if (!verifyAuth(request, env)) {
-      return errorResponse("Unauthorized: Missing or invalid X-App-Secret header", 401, request);
+      return errorResponse("Unauthorized: Missing or invalid X-App-Secret header", 401, request, env);
     }
 
     const db = drizzle(env.DB);
@@ -187,14 +229,14 @@ export default {
           .select()
           .from(presets)
           .orderBy(asc(presets.name));
-        return jsonResponse({ presets: list }, 200, request);
+        return jsonResponse({ presets: list }, 200, request, env);
       }
 
       if (path === "/api/presets" && method === "POST") {
         const body = await request.json();
         const parsed = CreatePresetSchema.safeParse(body);
         if (!parsed.success) {
-          return errorResponse(parsed.error.message, 400, request);
+          return errorResponse(parsed.error.message, 400, request, env);
         }
 
         const id = crypto.randomUUID();
@@ -209,7 +251,7 @@ export default {
         };
 
         await db.insert(presets).values(newPreset);
-        return jsonResponse({ preset: newPreset }, 201, request);
+        return jsonResponse({ preset: newPreset }, 201, request, env);
       }
 
       const presetIdMatch = path.match(/^\/api\/presets\/([a-zA-Z0-9_-]+)$/);
@@ -222,15 +264,15 @@ export default {
             .from(presets)
             .where(eq(presets.id, presetId))
             .get();
-          if (!found) return errorResponse("Preset not found", 404, request);
-          return jsonResponse({ preset: found }, 200, request);
+          if (!found) return errorResponse("Preset not found", 404, request, env);
+          return jsonResponse({ preset: found }, 200, request, env);
         }
 
         if (method === "PUT") {
           const body = await request.json();
           const parsed = UpdatePresetSchema.safeParse(body);
           if (!parsed.success) {
-            return errorResponse(parsed.error.message, 400, request);
+            return errorResponse(parsed.error.message, 400, request, env);
           }
 
           const updateData: Record<string, unknown> = {
@@ -250,12 +292,12 @@ export default {
             .from(presets)
             .where(eq(presets.id, presetId))
             .get();
-          return jsonResponse({ preset: updated }, 200, request);
+          return jsonResponse({ preset: updated }, 200, request, env);
         }
 
         if (method === "DELETE") {
           await db.delete(presets).where(eq(presets.id, presetId));
-          return jsonResponse({ success: true, id: presetId }, 200, request);
+          return jsonResponse({ success: true, id: presetId }, 200, request, env);
         }
       }
 
@@ -284,7 +326,7 @@ export default {
             items: itemsList.filter((item) => item.batchId === b.id),
           }));
 
-          return jsonResponse({ batches: result }, 200, request);
+          return jsonResponse({ batches: result }, 200, request, env);
         } else {
           // Fetch active batches
           const activeBatches = await db
@@ -303,7 +345,7 @@ export default {
             items: activeItems.filter((item) => item.batchId === b.id),
           }));
 
-          return jsonResponse({ batches: result }, 200, request);
+          return jsonResponse({ batches: result }, 200, request, env);
         }
       }
 
@@ -311,7 +353,7 @@ export default {
         const body = await request.json();
         const parsed = CreateBatchSchema.safeParse(body);
         if (!parsed.success) {
-          return errorResponse(parsed.error.message, 400, request);
+          return errorResponse(parsed.error.message, 400, request, env);
         }
 
         const batchId = parsed.data.id || crypto.randomUUID();
@@ -347,7 +389,8 @@ export default {
             items: itemRecords,
           },
           201,
-          request
+          request,
+          env
         );
       }
 
@@ -369,7 +412,7 @@ export default {
           .set({ deletedAt: now })
           .where(eq(historyItems.batchId, batchId));
 
-        return jsonResponse({ success: true, id: batchId, deletedAt: now }, 200, request);
+        return jsonResponse({ success: true, id: batchId, deletedAt: now }, 200, request, env);
       }
 
       // Restore Batch: POST /api/history/batch/:id/restore
@@ -389,7 +432,7 @@ export default {
           .set({ deletedAt: null })
           .where(eq(historyItems.batchId, batchId));
 
-        return jsonResponse({ success: true, id: batchId }, 200, request);
+        return jsonResponse({ success: true, id: batchId }, 200, request, env);
       }
 
       // -------------------------------------------------------------
@@ -399,14 +442,15 @@ export default {
         const body = await request.json().catch(() => ({}));
         const parsed = SignUploadSchema.safeParse(body);
         if (!parsed.success) {
-          return errorResponse(parsed.error.message, 400, request);
+          return errorResponse(parsed.error.message, 400, request, env);
         }
 
         if (!env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
           return errorResponse(
             "Cloudinary credentials are not configured on server",
             500,
-            request
+            request,
+            env
           );
         }
 
@@ -433,15 +477,16 @@ export default {
             folder,
           },
           200,
-          request
+          request,
+          env
         );
       }
 
-      return errorResponse("Route not found", 404, request);
+      return errorResponse("Route not found", 404, request, env);
     } catch (err: unknown) {
       console.error("Worker API Exception:", err);
       const msg = err instanceof Error ? err.message : "Internal Server Error";
-      return errorResponse(msg, 500, request);
+      return errorResponse(msg, 500, request, env);
     }
   },
 
