@@ -139,9 +139,18 @@ export default {
       });
     }
 
-    // Health check endpoint
-    if (path === "/api/health") {
-      return jsonResponse({ status: "ok", timestamp: new Date().toISOString() }, 200, request);
+    // Root & Health check endpoints
+    if (path === "/" || path === "/api/health") {
+      return jsonResponse(
+        {
+          name: "FORMA Visual Finishing API",
+          status: "healthy",
+          version: "1.0.0",
+          timestamp: new Date().toISOString(),
+        },
+        200,
+        request
+      );
     }
 
     // Verify Shared Secret Gate
