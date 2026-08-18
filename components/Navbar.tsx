@@ -147,11 +147,11 @@ export function Navbar() {
         </div>
       </header>
 
-      {/* Apple HIG Floating Bottom Navigation Dock */}
-      <div className="fixed bottom-5 inset-x-0 z-40 flex justify-center px-4 pointer-events-none animate-slide-up">
+      {/* Apple HIG Floating Bottom Navigation Dock (Hidden on mobile /edit to give full room to studio controls) */}
+      <div className={`fixed bottom-4 sm:bottom-5 inset-x-0 z-40 flex justify-center px-3 sm:px-4 pointer-events-none animate-slide-up ${pathname.startsWith("/edit") ? "hidden lg:flex" : "flex"}`}>
         <nav
           aria-label="Navigasi Utama"
-          className="pointer-events-auto inline-flex items-center gap-1 sm:gap-1.5 p-1.5 rounded-2xl bg-card/85 dark:bg-card/80 backdrop-blur-2xl border border-black/5 dark:border-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 ring-1 ring-black/5 dark:ring-white/5"
+          className="pointer-events-auto inline-flex items-center gap-1 sm:gap-1.5 p-1.5 rounded-2xl bg-card/90 dark:bg-card/85 backdrop-blur-2xl border border-black/10 dark:border-white/10 shadow-2xl shadow-black/20 ring-1 ring-black/5 dark:ring-white/5"
         >
           {navItems.map((item) => {
             const isActive =
@@ -163,7 +163,7 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2 py-2 px-3.5 sm:px-4 rounded-xl transition-all duration-200 active:scale-95 ${
+                className={`min-h-[44px] flex items-center gap-1.5 sm:gap-2 py-2 px-3 sm:px-4 rounded-xl transition-all duration-200 active:scale-95 ${
                   isActive
                     ? "bg-primary text-primary-foreground font-semibold shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium"

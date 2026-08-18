@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import AdjustmentsHorizontalIcon from "@heroicons/react/24/outline/AdjustmentsHorizontalIcon";
 import ShieldCheckIcon from "@heroicons/react/24/outline/ShieldCheckIcon";
 import BookmarkIcon from "@heroicons/react/24/outline/BookmarkIcon";
 import ArrowsPointingOutIcon from "@heroicons/react/24/outline/ArrowsPointingOutIcon";
@@ -256,7 +255,7 @@ export default function EditPage() {
         </p>
         <Link
           href="/"
-          className="mt-3 px-6 py-2.5 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-sm active:scale-95"
+          className="mt-3 min-h-[44px] inline-flex items-center px-6 py-2.5 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-sm active:scale-95"
         >
           Buka Koleksi Foto
         </Link>
@@ -265,44 +264,53 @@ export default function EditPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden animate-fade-in">
-      {/* Top Header Controls Bar */}
-      <div className="h-12 border-b border-border/50 bg-card/60 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
+    <div className="flex flex-col min-h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-3.5rem)] lg:overflow-hidden pb-24 lg:pb-0 animate-fade-in">
+      {/* ----------------------------------------------------------- */}
+      {/* TOP SUB-HEADER BAR (COMPACT & TOUCH-FRIENDLY) */}
+      {/* ----------------------------------------------------------- */}
+      <div className="h-14 border-b border-border/50 bg-card/70 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
+        <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-semibold px-2.5 py-1 rounded-lg border border-border/50 hover:bg-muted/50 transition-all active:scale-95"
+            className="min-h-[40px] px-2.5 py-1.5 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-semibold rounded-lg border border-border/50 hover:bg-muted/50 transition-all active:scale-95 shrink-0"
           >
             <ArrowLeftIcon className="w-3.5 h-3.5" />
-            <span>Koleksi</span>
+            <span className="hidden xs:inline">Koleksi</span>
           </Link>
-          <span className="text-xs text-muted-foreground">/</span>
-          <span className="text-xs font-bold text-foreground">Studio Finishing</span>
-          <span className="text-[11px] text-muted-foreground font-mono">
-            ({jobs.length} foto)
-          </span>
+          <span className="text-xs text-muted-foreground shrink-0">/</span>
+          <div className="flex items-baseline gap-1.5 truncate">
+            <span className="text-xs font-bold text-foreground truncate">
+              Studio Finishing
+            </span>
+            <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+              ({jobs.length} foto)
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={handleStartBatch}
             disabled={summary.isProcessing}
-            className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50 active:scale-95"
+            className="min-h-[40px] px-3 sm:px-3.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50 active:scale-95"
           >
             {summary.isProcessing ? (
               <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
             ) : (
               <PlayIcon className="w-3.5 h-3.5" />
             )}
-            <span>
-              {summary.isProcessing ? "Memproses Batch..." : "Proses Semua Foto"}
+            <span className="hidden sm:inline">
+              {summary.isProcessing ? "Memproses..." : "Proses Semua"}
+            </span>
+            <span className="sm:hidden">
+              {summary.isProcessing ? "..." : "Proses"}
             </span>
           </button>
 
           <Link
             href="/export"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl border border-border/60 bg-background hover:bg-muted transition-all active:scale-95"
+            className="min-h-[40px] px-3 sm:px-3.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold rounded-xl border border-border/60 bg-background hover:bg-muted transition-all active:scale-95 shadow-sm"
           >
             <ArrowDownTrayIcon className="w-3.5 h-3.5" />
             <span>Ekspor ({summary.done})</span>
@@ -310,17 +318,110 @@ export default function EditPage() {
         </div>
       </div>
 
-      {/* Main Two-Panel Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* ----------------------------------------------------------- */}
+      {/* MAIN LAYOUT: VERTICAL STACK ON MOBILE, 2-COLUMN ON DESKTOP */}
+      {/* ----------------------------------------------------------- */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
         {/* ----------------------------------------------------------- */}
-        {/* LEFT COLUMN: OPERATIONS & TUNING CONTROLS */}
+        {/* VIEWPORT & PREVIEW AREA (PRIMARY VISUAL CANVAS) */}
         {/* ----------------------------------------------------------- */}
-        <div className="w-80 sm:w-96 border-r border-border/50 bg-card/60 backdrop-blur-xl overflow-y-auto p-4 sm:p-6 flex flex-col gap-5 shrink-0">
+        <div className="w-full lg:flex-1 flex flex-col bg-background/50 order-1 lg:order-2 shrink-0 lg:shrink lg:overflow-hidden">
+          {/* Main Inspection Canvas Viewport */}
+          <div className="p-3 sm:p-6 lg:p-8 flex items-center justify-center relative overflow-hidden bg-dot-pattern">
+            {activeJob ? (
+              <div className="w-full h-[38vh] min-h-[260px] max-h-[380px] sm:h-[48vh] sm:max-h-[500px] lg:h-full lg:max-h-[68vh] flex items-center justify-center relative group">
+                {/* Dedicated Explicit Fullscreen Zoom Button */}
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(true)}
+                  className="min-h-[40px] min-w-[40px] absolute top-3 right-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 backdrop-blur-md text-white text-xs font-semibold shadow-xl transition-all active:scale-95 border border-white/10"
+                  title="Lihat Pratinjau Foto Penuh"
+                >
+                  <MagnifyingGlassPlusIcon className="w-4 h-4 text-primary-foreground" />
+                  <span className="hidden xs:inline">Zoom Penuh</span>
+                </button>
+
+                {options.colorAdjustment?.enabled ? (
+                  // Before / After Split Slider
+                  <SplitComparisonSlider
+                    originalSrc={activeJob.objectUrl}
+                    adjustedSrc={activeJob.resultBlobUrl || activeJob.objectUrl}
+                    className="w-full h-full"
+                    alt={activeJob.originalFilename}
+                  />
+                ) : (
+                  // Standard Preview Viewport
+                  <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/10 flex items-center justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={activeJob.resultBlobUrl || activeJob.objectUrl}
+                      alt={activeJob.originalFilename}
+                      className="w-full h-full object-contain block rounded-2xl transition-all duration-300"
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                Pilih foto dari daftar di bawah
+              </div>
+            )}
+          </div>
+
+          {/* Quick Filmstrip Carousel */}
+          <div className="border-y lg:border-t lg:border-b-0 border-border/50 bg-card/80 backdrop-blur-md px-3 sm:px-6 py-2.5 sm:py-3 flex items-center gap-2.5 sm:gap-3.5 overflow-x-auto shrink-0 scrollbar-thin">
+            {jobs.map((job, idx) => {
+              const isSelected = job.id === activeJob?.id;
+              return (
+                <button
+                  key={job.id}
+                  type="button"
+                  onClick={() => handleSelectJob(job)}
+                  className={`group relative h-16 sm:h-20 aspect-[4/3] rounded-xl overflow-hidden border-2 shrink-0 transition-all duration-200 active:scale-95 ${
+                    isSelected
+                      ? "border-primary ring-4 ring-primary/20 scale-105 shadow-md"
+                      : "border-border/60 opacity-70 hover:opacity-100 hover:scale-[1.02]"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={job.thumbnailUrl || job.objectUrl}
+                    alt={job.originalFilename}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute bottom-1 left-1 px-1 py-0.2 rounded bg-black/75 text-white text-[8px] sm:text-[9px] font-bold font-mono">
+                    #{idx + 1}
+                  </div>
+                  {job.state === "done" && (
+                    <div className="absolute top-1 right-1 p-0.5 rounded-full bg-emerald-600 text-white shadow-sm">
+                      <CheckCircleIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ----------------------------------------------------------- */}
+        {/* CONTROLS & OPERATIONS PANEL (STACKED ON MOBILE, SIDEBAR ON DESKTOP) */}
+        {/* ----------------------------------------------------------- */}
+        <div className="w-full lg:w-96 lg:border-r border-border/50 bg-card/60 backdrop-blur-xl p-4 sm:p-6 flex flex-col gap-4 sm:gap-5 order-2 lg:order-1 shrink-0 lg:overflow-y-auto">
+          {/* Section Header for Mobile */}
+          <div className="lg:hidden flex items-center justify-between pb-1 border-b border-border/40">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Pengaturan Finishing
+            </span>
+            <span className="text-[11px] text-primary font-medium">
+              Foto #{jobs.findIndex((j) => j.id === activeJob?.id) + 1} Terpilih
+            </span>
+          </div>
+
           {/* Operation 1: EXIF Metadata Stripping */}
           <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-2.5 shadow-sm hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between min-h-[44px]">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
                   <ShieldCheckIcon className="w-4 h-4" />
                 </div>
                 <div className="flex flex-col">
@@ -337,11 +438,11 @@ export default function EditPage() {
                 type="checkbox"
                 checked={options.stripMetadata}
                 onChange={handleToggleMetadata}
-                className="w-4 h-4 accent-primary cursor-pointer rounded transition-transform active:scale-90"
+                className="w-5 h-5 accent-primary cursor-pointer rounded transition-transform active:scale-90"
               />
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Menghapus lokasi GPS, model kamera, dan nomor seri hardware secara aman demi privasi klien interior.
+              Menghapus lokasi GPS, model kamera, dan data hardware secara aman demi privasi klien interior.
             </p>
           </div>
 
@@ -349,7 +450,7 @@ export default function EditPage() {
           <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3 shadow-sm hover:border-primary/40 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-accent/10 text-accent">
+                <div className="p-2 rounded-xl bg-accent/10 text-accent shrink-0">
                   <BookmarkIcon className="w-4 h-4" />
                 </div>
                 <div className="flex flex-col">
@@ -364,16 +465,16 @@ export default function EditPage() {
 
               <Link
                 href="/presets"
-                className="text-[11px] font-semibold text-primary hover:underline"
+                className="min-h-[44px] inline-flex items-center text-xs font-semibold text-primary hover:underline px-2"
               >
-                Kelola
+                Kelola Preset
               </Link>
             </div>
 
             <select
               value={selectedPresetId}
               onChange={(e) => handleSelectPreset(e.target.value)}
-              className="w-full text-xs font-medium rounded-xl border border-border/60 bg-background px-3.5 py-2.5 shadow-sm focus-visible:ring-2 focus-visible:ring-primary"
+              className="w-full min-h-[44px] text-xs font-medium rounded-xl border border-border/60 bg-background px-3.5 py-2.5 shadow-sm focus-visible:ring-2 focus-visible:ring-primary"
             >
               <option value="">Tanpa Watermark</option>
               {presets.map((preset) => (
@@ -397,7 +498,7 @@ export default function EditPage() {
           {/* Operation 3: Resize & Compress Preset */}
           <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3.5 shadow-sm hover:border-primary/40 transition-colors">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
+              <div className="p-2 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 shrink-0">
                 <ArrowsPointingOutIcon className="w-4 h-4" />
               </div>
               <div className="flex flex-col">
@@ -423,7 +524,7 @@ export default function EditPage() {
                     key={key}
                     type="button"
                     onClick={() => handleResizePresetChange(key)}
-                    className={`p-2.5 rounded-xl border text-left flex flex-col gap-0.5 transition-all duration-200 active:scale-95 ${
+                    className={`min-h-[50px] p-2.5 rounded-xl border text-left flex flex-col justify-center gap-0.5 transition-all duration-200 active:scale-95 ${
                       isSelected
                         ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
                         : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border-border/60"
@@ -455,7 +556,7 @@ export default function EditPage() {
                 <button
                   type="button"
                   onClick={() => handleFitModeChange("cover")}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
+                  className={`min-h-[44px] py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
                     options.resize.fitMode === "cover"
                       ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
                       : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border-border/60"
@@ -466,7 +567,7 @@ export default function EditPage() {
                 <button
                   type="button"
                   onClick={() => handleFitModeChange("contain")}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
+                  className={`min-h-[44px] py-2 px-2.5 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
                     options.resize.fitMode === "contain"
                       ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
                       : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border-border/60"
@@ -496,7 +597,7 @@ export default function EditPage() {
                       key={fmt.id}
                       type="button"
                       onClick={() => handleFormatChange(fmt.id)}
-                      className={`py-2 px-2 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
+                      className={`min-h-[44px] py-2 px-2 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
                         isChosen
                           ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
                           : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border-border/60"
@@ -520,7 +621,7 @@ export default function EditPage() {
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center justify-between text-xs min-h-[30px]">
                     <span className="font-semibold text-foreground">
                       Kualitas Kompresi (
                       {options.resize.format === "image/webp" ? "WebP" : "JPG"})
@@ -538,7 +639,7 @@ export default function EditPage() {
                     onChange={(e) =>
                       handleQualityChange(parseFloat(e.target.value))
                     }
-                    className="w-full accent-primary mt-1"
+                    className="w-full accent-primary mt-1 min-h-[36px]"
                   />
                 </>
               )}
@@ -547,9 +648,9 @@ export default function EditPage() {
 
           {/* Operation 4: Non-Destructive Auto-Color Preview */}
           <div className="rounded-2xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3.5 shadow-sm hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between min-h-[44px]">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
                   <AdjustmentsVerticalIcon className="w-4 h-4" />
                 </div>
                 <div className="flex flex-col">
@@ -566,13 +667,13 @@ export default function EditPage() {
                 type="checkbox"
                 checked={options.colorAdjustment?.enabled || false}
                 onChange={handleColorToggle}
-                className="w-4 h-4 accent-primary cursor-pointer rounded transition-transform active:scale-90"
+                className="w-5 h-5 accent-primary cursor-pointer rounded transition-transform active:scale-90"
               />
             </div>
 
             {options.colorAdjustment?.enabled && (
               <div className="flex flex-col gap-3 pt-3 border-t border-border/50 animate-in fade-in">
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between text-xs min-h-[30px]">
                   <span className="font-semibold text-foreground">Intensitas Warna</span>
                   <span className="font-mono text-muted-foreground">
                     {options.colorAdjustment.intensityPct}%
@@ -586,13 +687,13 @@ export default function EditPage() {
                   onChange={(e) =>
                     handleColorIntensityChange(parseInt(e.target.value))
                   }
-                  className="w-full accent-primary mt-1"
+                  className="w-full accent-primary mt-1 min-h-[36px]"
                 />
 
                 <button
                   type="button"
                   onClick={handleResetColor}
-                  className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground py-2 rounded-xl border border-border/60 hover:bg-muted/50 transition-all active:scale-95"
+                  className="min-h-[44px] flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground py-2.5 rounded-xl border border-border/60 hover:bg-muted/50 transition-all active:scale-95"
                 >
                   <ArrowPathIcon className="w-3.5 h-3.5" />
                   <span>Kembalikan ke Warna Asli</span>
@@ -601,145 +702,67 @@ export default function EditPage() {
             )}
           </div>
         </div>
+      </div>
 
-        {/* ----------------------------------------------------------- */}
-        {/* RIGHT COLUMN: MAIN VIEWPORT & FILMSTRIP */}
-        {/* ----------------------------------------------------------- */}
-        <div className="flex-1 flex flex-col bg-background/50 overflow-hidden">
-          {/* Main Inspection Canvas Viewport */}
-          <div className="flex-1 p-4 sm:p-8 flex items-center justify-center relative overflow-hidden">
-            {activeJob ? (
-              <div className="w-full h-full max-h-[68vh] flex items-center justify-center relative group">
-                {/* Dedicated Explicit Fullscreen Zoom Button */}
-                <button
-                  type="button"
-                  onClick={() => setLightboxOpen(true)}
-                  className="absolute top-3 right-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 backdrop-blur-md text-white text-xs font-semibold shadow-xl transition-all active:scale-95 border border-white/10"
-                  title="Lihat Pratinjau Foto Penuh"
-                >
-                  <MagnifyingGlassPlusIcon className="w-3.5 h-3.5 text-primary-foreground" />
-                  <span>Zoom Penuh</span>
-                </button>
-
-                {options.colorAdjustment?.enabled ? (
-                  // Before / After Split Slider
-                  <SplitComparisonSlider
-                    originalSrc={activeJob.objectUrl}
-                    adjustedSrc={activeJob.resultBlobUrl || activeJob.objectUrl}
-                    className="max-w-full max-h-full"
-                    alt={activeJob.originalFilename}
-                  />
-                ) : (
-                  // Standard Preview Viewport
-                  <div className="relative max-w-full max-h-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/10 flex items-center justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={activeJob.resultBlobUrl || activeJob.objectUrl}
-                      alt={activeJob.originalFilename}
-                      className="max-w-full max-h-[64vh] object-contain block rounded-2xl transition-all duration-300"
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground">
-                Pilih foto dari daftar di bawah
-              </div>
-            )}
-          </div>
-
-          {/* Bottom Filmstrip Carousel */}
-          <div className="h-28 border-t border-border/50 bg-card/80 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center gap-3.5 overflow-x-auto shrink-0">
-            {jobs.map((job, idx) => {
-              const isSelected = job.id === activeJob?.id;
-              return (
-                <button
-                  key={job.id}
-                  type="button"
-                  onClick={() => handleSelectJob(job)}
-                  className={`group relative h-20 aspect-[4/3] rounded-xl overflow-hidden border-2 shrink-0 transition-all duration-200 active:scale-95 ${
-                    isSelected
-                      ? "border-primary ring-4 ring-primary/20 scale-105 shadow-md"
-                      : "border-border/60 opacity-70 hover:opacity-100 hover:scale-[1.02]"
-                  }`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={job.thumbnailUrl || job.objectUrl}
-                    alt={job.originalFilename}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/75 text-white text-[9px] font-bold font-mono">
-                    #{idx + 1}
-                  </div>
-                  {job.state === "done" && (
-                    <div className="absolute top-1.5 right-1.5 p-0.5 rounded-full bg-emerald-600 text-white shadow-sm">
-                      <CheckCircleIcon className="w-3 h-3" />
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Action Bar Footer */}
-          <div className="h-16 border-t border-border/50 bg-card/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between gap-4 shrink-0">
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">
-                Progres Batch:{" "}
-                <span className="font-semibold text-foreground">
-                  {summary.done}
-                </span>{" "}
-                dari {summary.total} foto selesai
-              </span>
-              {summary.isProcessing && (
-                <div className="flex items-center gap-1.5 text-xs text-accent font-semibold">
-                  <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                  <span>Sedang memproses...</span>
-                </div>
-              )}
+      {/* ----------------------------------------------------------- */}
+      {/* MOBILE & DESKTOP STICKY BOTTOM ACTION BAR */}
+      {/* ----------------------------------------------------------- */}
+      <div className="fixed lg:static bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-card/95 backdrop-blur-xl px-4 sm:px-6 py-2.5 lg:py-0 lg:h-16 flex items-center justify-between gap-3 shadow-2xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground">
+          <span className="hidden sm:inline">Progres:</span>
+          <span className="font-semibold text-foreground">
+            {summary.done} / {summary.total}
+          </span>
+          <span className="hidden xs:inline">selesai</span>
+          {summary.isProcessing && (
+            <div className="flex items-center gap-1 text-accent font-semibold ml-1">
+              <ArrowPathIcon className="w-3 h-3 animate-spin" />
+              <span className="hidden sm:inline">Memproses...</span>
             </div>
+          )}
+        </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleStartBatch}
-                disabled={summary.isProcessing}
-                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border border-border/60 bg-background hover:bg-muted disabled:opacity-50 transition-all active:scale-95 shadow-sm"
-              >
-                <PlayIcon className="w-3.5 h-3.5 text-primary" />
-                <span>Proses Semua Foto</span>
-              </button>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={handleStartBatch}
+            disabled={summary.isProcessing}
+            className="min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-xs font-semibold rounded-xl border border-border/60 bg-background hover:bg-muted disabled:opacity-50 transition-all active:scale-95 shadow-sm"
+          >
+            <PlayIcon className="w-3.5 h-3.5 text-primary" />
+            <span className="hidden sm:inline">Proses Semua</span>
+            <span className="sm:hidden">Proses</span>
+          </button>
 
-              <Link
-                href="/export"
-                className="flex items-center gap-2 px-5 py-2 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all active:scale-95 shadow-sm"
-              >
-                <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                <span>Lanjut ke Ekspor</span>
-              </Link>
-            </div>
-          </div>
+          <Link
+            href="/export"
+            className="min-h-[44px] flex items-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all active:scale-95 shadow-sm"
+          >
+            <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+            <span>Ekspor</span>
+          </Link>
         </div>
       </div>
 
-      {/* Full-Screen High-Resolution Lightbox Modal */}
+      {/* ----------------------------------------------------------- */}
+      {/* FULL-SCREEN HIGH-RESOLUTION LIGHTBOX MODAL */}
+      {/* ----------------------------------------------------------- */}
       {lightboxOpen && activeJob && (
         <div
           onClick={() => setLightboxOpen(false)}
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex flex-col items-center justify-between p-4 sm:p-6 animate-fade-in"
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-between p-4 sm:p-6 animate-fade-in"
         >
           {/* Top Bar Header */}
           <div
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-6xl flex items-center justify-between text-white"
           >
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold truncate">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <span className="text-xs sm:text-sm font-semibold truncate max-w-[200px] sm:max-w-md">
                 {activeJob.originalFilename}
               </span>
               {activeJob.originalDimensions && (
-                <span className="text-xs text-white/60 font-mono">
+                <span className="text-[10px] sm:text-xs text-white/60 font-mono shrink-0">
                   ({activeJob.originalDimensions.width} ×{" "}
                   {activeJob.originalDimensions.height} px)
                 </span>
@@ -749,7 +772,8 @@ export default function EditPage() {
             <button
               type="button"
               onClick={() => setLightboxOpen(false)}
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all active:scale-90"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-all active:scale-90"
+              aria-label="Tutup Pratinjau"
             >
               <XMarkIcon className="w-5 h-5" />
             </button>
@@ -764,16 +788,16 @@ export default function EditPage() {
             <img
               src={activeJob.resultBlobUrl || activeJob.objectUrl}
               alt={activeJob.originalFilename}
-              className="max-w-full max-h-[82vh] object-contain rounded-xl shadow-2xl"
+              className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl"
             />
           </div>
 
           {/* Bottom Caption */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="text-xs text-white/60 font-medium"
+            className="text-[11px] sm:text-xs text-white/60 font-medium text-center"
           >
-            Klik di luar foto atau tekan <kbd className="px-1.5 py-0.5 rounded bg-white/20 text-white font-mono text-[10px]">Esc</kbd> untuk menutup pratinjau
+            Ketuk di luar foto atau tekan tombol silang untuk menutup
           </div>
         </div>
       )}

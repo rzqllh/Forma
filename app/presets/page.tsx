@@ -231,9 +231,19 @@ export default function PresetsPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Left Column: Form Controls */}
-            <form onSubmit={handleSave} className="lg:col-span-7 flex flex-col gap-5">
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 lg:gap-8">
+            {/* Live Interactive Canvas Preview (Top on Mobile, Right on Desktop) */}
+            <div className="lg:col-span-5 lg:order-2 flex flex-col gap-2.5">
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Pratinjau Langsung Watermark
+              </span>
+              <div className="rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 shadow-lg bg-black/5">
+                <PresetEditorCanvas settings={settings} logoUrl={logoUrl} />
+              </div>
+            </div>
+
+            {/* Form Controls (Bottom on Mobile, Left on Desktop) */}
+            <form onSubmit={handleSave} className="lg:col-span-7 lg:order-1 flex flex-col gap-5">
               {/* Preset Name */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-foreground">
@@ -244,7 +254,7 @@ export default function PresetsPage() {
                   placeholder="Contoh: Mawmaw Interior Utama"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="px-4 py-2.5 rounded-xl border border-border/60 bg-background text-xs font-medium focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
+                  className="min-h-[44px] px-4 py-2.5 rounded-xl border border-border/60 bg-background text-xs font-medium focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
                   required
                 />
               </div>
@@ -254,8 +264,8 @@ export default function PresetsPage() {
                 <label className="text-xs font-semibold text-foreground">
                   File Logo Watermark <span className="text-destructive">*</span>
                 </label>
-                <div className="flex items-center gap-3">
-                  <label className="cursor-pointer flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border/60 bg-background text-xs font-semibold hover:bg-muted transition-all active:scale-95 shadow-sm">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="min-h-[44px] cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border/60 bg-background text-xs font-semibold hover:bg-muted transition-all active:scale-95 shadow-sm">
                     <ArrowUpTrayIcon className="w-4 h-4 text-primary" />
                     <span>Pilih File Logo (PNG/SVG)</span>
                     <input
@@ -266,8 +276,8 @@ export default function PresetsPage() {
                     />
                   </label>
                   {logoUrl && (
-                    <span className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                      <CheckIcon className="w-4 h-4" /> Logo siap
+                    <span className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1 min-h-[30px]">
+                      <CheckIcon className="w-4 h-4" /> Logo Terpasang
                     </span>
                   )}
                 </div>
@@ -281,9 +291,9 @@ export default function PresetsPage() {
               {/* 9-Point Anchor Position Grid */}
               <div className="flex flex-col gap-2.5">
                 <label className="text-xs font-semibold text-foreground">
-                  Posisi Penempatan
+                  Posisi Sudut Penempatan
                 </label>
-                <div className="grid grid-cols-3 gap-2.5 max-w-xs">
+                <div className="grid grid-cols-3 gap-2 sm:gap-2.5 max-w-sm">
                   {ANCHOR_POSITIONS.map((pos) => {
                     const isSelected = settings.position === pos.id;
                     return (
@@ -293,7 +303,7 @@ export default function PresetsPage() {
                         onClick={() =>
                           setSettings({ ...settings, position: pos.id })
                         }
-                        className={`py-2.5 px-2 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
+                        className={`min-h-[44px] py-2.5 px-2 rounded-xl text-xs font-medium border text-center transition-all active:scale-95 ${
                           isSelected
                             ? "bg-primary text-primary-foreground border-primary font-semibold shadow-sm"
                             : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted border-border/60"
@@ -308,7 +318,7 @@ export default function PresetsPage() {
 
               {/* Scale Slider */}
               <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between text-xs min-h-[30px]">
                   <span className="font-semibold text-foreground">Ukuran Logo</span>
                   <span className="text-muted-foreground font-mono">
                     {settings.scalePct}% dari lebar foto
@@ -325,13 +335,13 @@ export default function PresetsPage() {
                       scalePct: parseInt(e.target.value),
                     })
                   }
-                  className="w-full accent-primary"
+                  className="w-full accent-primary min-h-[36px]"
                 />
               </div>
 
               {/* Opacity Slider */}
               <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between text-xs min-h-[30px]">
                   <span className="font-semibold text-foreground">Transparansi (Opacity)</span>
                   <span className="text-muted-foreground font-mono">
                     {settings.opacityPct}%
@@ -348,13 +358,13 @@ export default function PresetsPage() {
                       opacityPct: parseInt(e.target.value),
                     })
                   }
-                  className="w-full accent-primary"
+                  className="w-full accent-primary min-h-[36px]"
                 />
               </div>
 
               {/* Rotation Slider */}
               <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between text-xs min-h-[30px]">
                   <span className="font-semibold text-foreground">Kemiringan (Rotasi)</span>
                   <span className="text-muted-foreground font-mono">
                     {settings.rotationDeg}°
@@ -371,7 +381,7 @@ export default function PresetsPage() {
                       rotationDeg: parseInt(e.target.value),
                     })
                   }
-                  className="w-full accent-primary"
+                  className="w-full accent-primary min-h-[36px]"
                 />
               </div>
 
@@ -388,29 +398,19 @@ export default function PresetsPage() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-6 py-2.5 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50 active:scale-95"
+                  className="min-h-[44px] flex-1 sm:flex-none px-6 py-2.5 bg-primary text-primary-foreground font-semibold text-xs rounded-xl hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50 active:scale-95"
                 >
                   {isSaving ? "Menyimpan..." : editingId ? "Perbarui Preset" : "Simpan Preset"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
-                  className="px-5 py-2.5 border border-border/60 bg-background text-xs font-semibold rounded-xl hover:bg-muted transition-all active:scale-95"
+                  className="min-h-[44px] px-5 py-2.5 border border-border/60 bg-background text-xs font-semibold rounded-xl hover:bg-muted transition-all active:scale-95"
                 >
                   Batal
                 </button>
               </div>
             </form>
-
-            {/* Right Column: Live Interactive Canvas Preview */}
-            <div className="lg:col-span-5 flex flex-col gap-3">
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                Preview Langsung di Foto Contoh
-              </span>
-              <div className="rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 shadow-lg">
-                <PresetEditorCanvas settings={settings} logoUrl={logoUrl} />
-              </div>
-            </div>
           </div>
         </div>
       )}

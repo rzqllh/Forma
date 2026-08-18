@@ -277,12 +277,12 @@ export default function ExportPage() {
         </div>
 
         {/* Batch Actions */}
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
           <button
             type="button"
             onClick={handleDownloadZip}
             disabled={isZipping || completedJobs.length === 0}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50 active:scale-95"
+            className="min-h-[44px] flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50 active:scale-95"
           >
             {isZipping ? (
               <ArrowPathIcon className="w-4 h-4 animate-spin" />
@@ -296,7 +296,7 @@ export default function ExportPage() {
             type="button"
             onClick={handleCloudinarySync}
             disabled={isCloudSyncing || completedJobs.length === 0}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-border/60 bg-background hover:bg-muted text-xs font-semibold transition-all shadow-sm disabled:opacity-50 active:scale-95"
+            className="min-h-[44px] flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-border/60 bg-background hover:bg-muted text-xs font-semibold transition-all shadow-sm disabled:opacity-50 active:scale-95"
           >
             {isCloudSyncing ? (
               <ArrowPathIcon className="w-4 h-4 animate-spin" />
