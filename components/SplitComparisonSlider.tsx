@@ -7,7 +7,6 @@ interface SplitComparisonSliderProps {
   adjustedSrc: string;
   className?: string;
   alt?: string;
-  onImageClick?: () => void;
 }
 
 export function SplitComparisonSlider({
@@ -15,7 +14,6 @@ export function SplitComparisonSlider({
   adjustedSrc,
   className = "",
   alt = "Before and after comparison",
-  onImageClick,
 }: SplitComparisonSliderProps) {
   const [splitPos, setSplitPos] = useState<number>(50); // percentage (0 - 100)
   const [isDragging, setIsDragging] = useState(false);
@@ -30,51 +28,41 @@ export function SplitComparisonSlider({
     setSplitPos(percentage);
   }, []);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    e.stopPropagation();
-    setIsDragging(true);
+    updatePosition(e.clientX);
   };
 
   useEffect(() => {
-    const handleMouseMove = (e: globalThis.MouseEvent) => {
+    const handlePointerMove = (e: globalThis.PointerEvent) => {
       if (!isDragging) return;
       updatePosition(e.clientX);
     };
 
-    const handleTouchMove = (e: globalThis.TouchEvent) => {
-      if (!isDragging || e.touches.length === 0) return;
-      updatePosition(e.touches[0].clientX);
+    const handlePointerUp = () => {
+      setIsDragging(false);
     };
 
-    const handleEnd = () => setIsDragging(false);
-
     if (isDragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleEnd);
-      window.addEventListener("touchmove", handleTouchMove);
-      window.addEventListener("touchend", handleEnd);
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+      window.addEventListener("pointercancel", handlePointerUp);
     }
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleEnd);
-      window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchend", handleEnd);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
     };
   }, [isDragging, updatePosition]);
 
   return (
     <div
       ref={containerRef}
-      onClick={() => {
-        if (!isDragging && onImageClick) onImageClick();
-      }}
-      className={`relative select-none overflow-hidden rounded-2xl border border-black/10 dark:border-white/10 bg-black/5 shadow-2xl cursor-pointer ${className}`}
+      onPointerDown={handlePointerDown}
+      className={`relative select-none overflow-hidden rounded-2xl border border-black/10 dark:border-white/10 bg-black/5 shadow-2xl cursor-ew-resize ${className}`}
       style={{ touchAction: "none" }}
     >
       {/* Background: Adjusted / After Image (Full width/height) */}
@@ -99,16 +87,14 @@ export function SplitComparisonSlider({
 
       {/* Divider Line & Interactive Handle */}
       <div
-        className="absolute top-0 bottom-0 z-20 cursor-ew-resize flex items-center justify-center pointer-events-auto"
+        className="absolute top-0 bottom-0 z-20 pointer-events-none flex items-center justify-center"
         style={{ left: `${splitPos}%`, transform: "translateX(-50%)" }}
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleTouchStart}
       >
         {/* Vertical Divider Line */}
         <div className="w-0.5 h-full bg-white shadow-[0_0_10px_rgba(0,0,0,0.8)]" />
 
         {/* Center Circular Tactile Handle */}
-        <div className="absolute w-8 h-8 rounded-full bg-white text-slate-800 shadow-xl border-2 border-slate-700 flex items-center justify-center text-[10px] font-bold hover:scale-110 active:scale-95 transition-transform">
+        <div className="absolute w-8 h-8 rounded-full bg-white text-slate-800 shadow-xl border-2 border-slate-700 flex items-center justify-center text-[10px] font-bold">
           ◀▶
         </div>
       </div>

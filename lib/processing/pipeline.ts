@@ -44,29 +44,7 @@ export async function processImageSource(
     colorAdjusted = true;
   }
 
-  // Step 3: Watermark Compositing (if enabled)
-  let watermarked = false;
-  let presetName: string | undefined = undefined;
-
-  if (
-    options.watermark?.enabled &&
-    options.watermark.preset &&
-    logoImage &&
-    logoWidth &&
-    logoHeight
-  ) {
-    compositeWatermark(
-      workingCanvas,
-      logoImage,
-      logoWidth,
-      logoHeight,
-      options.watermark.preset.settings
-    );
-    watermarked = true;
-    presetName = options.watermark.preset.name;
-  }
-
-  // Step 4: Resize & Crop
+  // Step 3: Resize & Crop
   const calculatedDims = calculateTargetDimensions(
     sourceWidth,
     sourceHeight,
@@ -78,6 +56,28 @@ export async function processImageSource(
     calculatedDims,
     options.resize.format
   );
+
+  // Step 4: Watermark Compositing onto final output canvas
+  let watermarked = false;
+  let presetName: string | undefined = undefined;
+
+  if (
+    options.watermark?.enabled &&
+    options.watermark.preset &&
+    logoImage &&
+    logoWidth &&
+    logoHeight
+  ) {
+    compositeWatermark(
+      finalCanvas,
+      logoImage,
+      logoWidth,
+      logoHeight,
+      options.watermark.preset.settings
+    );
+    watermarked = true;
+    presetName = options.watermark.preset.name;
+  }
 
   // Step 5: Encode to Blob
   const blob = await canvasToBlob(

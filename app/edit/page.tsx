@@ -610,6 +610,17 @@ export default function EditPage() {
           <div className="flex-1 p-4 sm:p-8 flex items-center justify-center relative overflow-hidden">
             {activeJob ? (
               <div className="w-full h-full max-h-[68vh] flex items-center justify-center relative group">
+                {/* Dedicated Explicit Fullscreen Zoom Button */}
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(true)}
+                  className="absolute top-3 right-3 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black/90 backdrop-blur-md text-white text-xs font-semibold shadow-xl transition-all active:scale-95 border border-white/10"
+                  title="Lihat Pratinjau Foto Penuh"
+                >
+                  <MagnifyingGlassPlusIcon className="w-3.5 h-3.5 text-primary-foreground" />
+                  <span>Zoom Penuh</span>
+                </button>
+
                 {options.colorAdjustment?.enabled ? (
                   // Before / After Split Slider
                   <SplitComparisonSlider
@@ -617,25 +628,16 @@ export default function EditPage() {
                     adjustedSrc={activeJob.resultBlobUrl || activeJob.objectUrl}
                     className="max-w-full max-h-full"
                     alt={activeJob.originalFilename}
-                    onImageClick={() => setLightboxOpen(true)}
                   />
                 ) : (
                   // Standard Preview Viewport
-                  <div
-                    onClick={() => setLightboxOpen(true)}
-                    className="relative max-w-full max-h-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/10 flex items-center justify-center cursor-zoom-in"
-                  >
+                  <div className="relative max-w-full max-h-full rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 bg-black/10 flex items-center justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={activeJob.resultBlobUrl || activeJob.objectUrl}
                       alt={activeJob.originalFilename}
-                      className="max-w-full max-h-[64vh] object-contain block rounded-2xl transition-all duration-300 group-hover:scale-[1.01]"
+                      className="max-w-full max-h-[64vh] object-contain block rounded-2xl transition-all duration-300"
                     />
-
-                    {/* Subtle Magnify Hint on Hover */}
-                    <div className="absolute top-4 right-4 p-2 rounded-full bg-black/60 backdrop-blur-md text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
-                      <MagnifyingGlassPlusIcon className="w-4 h-4" />
-                    </div>
                   </div>
                 )}
               </div>
